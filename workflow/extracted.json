@@ -1,0 +1,30 @@
+[
+  {
+    "productName": "Gopal Dilkhush Pan Chatni",
+    "expiryDate": "2025-02-28",
+    "mrp": "₹ 268.00",
+    "weight": "900 g",
+    "ingredients": "Sugar, Liquid Glucose, Menthol, Saccharin Sodium, Silver Leaves, Added Flavours (Natural & Artificial Flavouring Substances - Rose)",
+    "nutrition": {
+      "energyKcal": 338.08,
+      "proteinG": 0.36,
+      "carbsG": 84.16,
+      "sugarG": 70.47,
+      "fatG": 0,
+      "saturatedFatG": null,
+      "transFatG": null,
+      "sodiumMg": null,
+      "fiberG": null
+    },
+    "extractedAt": "2025-10-05T08:33:32.853Z",
+    "daysToExpire": "Expired 219 days ago",
+    "expiryStatus": "Expired",
+    "daysToExpireRaw": -219,
+    "healthRating": "Moderate",
+    "healthScore": 65,
+    "concerns": [
+      "artificial sweeteners",
+      "High sugar (70.47g/100g)"
+    ]
+  }
+]
