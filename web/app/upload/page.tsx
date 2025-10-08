@@ -91,21 +91,23 @@ export default function UploadPage() {
     setState('analyzing')
 
     try {
-      // Compress image
+      // Compress image to reduce upload size
       const compressed = await compressImage(data.image, 2)
+
+      // Create FormData with compressed image file
+      const formData = new FormData()
+      formData.append('image', compressed.blob, compressed.filename)
 
       // Create timeout promise
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('TIMEOUT')), ANALYSIS_TIMEOUT)
       })
 
-      // Call analysis API with timeout (server-side route)
+      // Call analysis API with FormData (server-side route)
       const analysisPromise = fetch('/api/analyze', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ imageBase64: compressed.base64 }),
+        // Don't set Content-Type header - browser sets it automatically for FormData
+        body: formData,
       }).then(async (res) => {
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({}))

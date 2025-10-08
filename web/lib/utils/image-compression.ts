@@ -10,21 +10,24 @@ const MIN_QUALITY = 0.5
 
 export interface CompressionResult {
   base64: string
+  blob: Blob
   size: number
   compressed: boolean
+  filename: string
 }
 
 /**
  * Compresses an image file to meet target size
  * @param file - The image file to compress
  * @param targetSizeMB - Target size in megabytes (default: 2MB)
- * @returns Promise with base64 string and metadata
+ * @returns Promise with base64 string, blob, and metadata
  */
 export async function compressImage(
   file: File,
   targetSizeMB: number = MAX_SIZE_MB
 ): Promise<CompressionResult> {
   const targetBytes = targetSizeMB * 1024 * 1024
+  const filename = file.name || 'product.jpg'
 
   // Read file as data URL
   const originalBase64 = await fileToBase64(file)
@@ -32,10 +35,13 @@ export async function compressImage(
 
   // If already under target size, return original
   if (originalSize <= targetBytes) {
+    const blob = await base64ToBlob(originalBase64)
     return {
       base64: originalBase64,
+      blob,
       size: originalSize,
       compressed: false,
+      filename,
     }
   }
 
@@ -73,10 +79,14 @@ export async function compressImage(
     }
   }
 
+  const blob = await base64ToBlob(compressedBase64)
+
   return {
     base64: compressedBase64,
+    blob,
     size: compressedSize,
     compressed: true,
+    filename,
   }
 }
 
@@ -89,6 +99,33 @@ function fileToBase64(file: File): Promise<string> {
     reader.onload = () => resolve(reader.result as string)
     reader.onerror = reject
     reader.readAsDataURL(file)
+  })
+}
+
+/**
+ * Converts base64 string to Blob
+ */
+function base64ToBlob(base64: string): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    try {
+      const [header, data] = base64.split(',')
+      const mimeMatch = header.match(/:(.*?);/)
+      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg'
+
+      const byteCharacters = atob(data)
+      const byteNumbers = new Array(byteCharacters.length)
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+
+      const byteArray = new Uint8Array(byteNumbers)
+      const blob = new Blob([byteArray], { type: mime })
+
+      resolve(blob)
+    } catch (error) {
+      reject(error)
+    }
   })
 }
 

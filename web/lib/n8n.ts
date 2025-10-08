@@ -1,27 +1,26 @@
 const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL!
 
-export interface N8nAnalyzeRequest {
-  imageBase64: string
-}
-
 export interface N8nAnalyzeResponse {
   success: boolean
   data?: any
   error?: string
 }
 
-export async function analyzeProductImage(imageBase64: string): Promise<N8nAnalyzeResponse> {
+export async function analyzeProductImage(imageFile: File | Blob): Promise<N8nAnalyzeResponse> {
   try {
     console.log('[N8N] Calling webhook:', N8N_WEBHOOK_URL)
-    console.log('[N8N] Image data length:', imageBase64.length, 'characters')
+    console.log('[N8N] Image file type:', imageFile.type)
+    console.log('[N8N] Image file size:', imageFile.size, 'bytes')
 
-    // n8n webhook expects { "images": ["base64_string"] } format
+    // Create FormData and append the image file
+    const formData = new FormData()
+    formData.append('image', imageFile, 'product.jpg')
+
+    // n8n webhook expects multipart/form-data with file attachment
     const response = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ images: [imageBase64] }),
+      // Don't set Content-Type header - browser will set it with correct boundary
+      body: formData,
     })
 
     console.log('[N8N] Response status:', response.status)

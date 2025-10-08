@@ -3,21 +3,32 @@ import { analyzeProductImage } from '@/lib/n8n'
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { imageBase64 } = body
+    const formData = await request.formData()
+    const imageFile = formData.get('image') as File | null
 
-    if (!imageBase64) {
-      console.error('[ANALYZE API] Missing imageBase64 in request body')
+    if (!imageFile) {
+      console.error('[ANALYZE API] Missing image file in request')
       return NextResponse.json(
-        { success: false, error: 'Image data is required' },
+        { success: false, error: 'Image file is required' },
         { status: 400 }
       )
     }
 
-    console.log('[ANALYZE API] Received image, size:', imageBase64.length, 'characters')
+    // Validate file type
+    if (!imageFile.type.startsWith('image/')) {
+      console.error('[ANALYZE API] Invalid file type:', imageFile.type)
+      return NextResponse.json(
+        { success: false, error: 'File must be an image (JPEG, PNG, WebP, etc.)' },
+        { status: 400 }
+      )
+    }
+
+    console.log('[ANALYZE API] Received image file:', imageFile.name)
+    console.log('[ANALYZE API] File type:', imageFile.type)
+    console.log('[ANALYZE API] File size:', imageFile.size, 'bytes')
     console.log('[ANALYZE API] Calling n8n webhook...')
 
-    const result = await analyzeProductImage(imageBase64)
+    const result = await analyzeProductImage(imageFile)
 
     console.log('[ANALYZE API] n8n result:', result.success ? 'SUCCESS' : 'FAILED')
     if (!result.success) {
