@@ -8,7 +8,6 @@ import { AnalyzingState } from '@/components/upload/analyzing-state'
 import { ProductResults } from '@/components/upload/product-results'
 import { AnalysisError } from '@/components/upload/analysis-error'
 import { compressImage } from '@/lib/utils/image-compression'
-import { analyzeProductImage } from '@/lib/n8n'
 import { useToast } from '@/hooks/use-toast'
 import type { Product } from '@/types/product'
 
@@ -100,12 +99,26 @@ export default function UploadPage() {
         setTimeout(() => reject(new Error('TIMEOUT')), ANALYSIS_TIMEOUT)
       })
 
-      // Call analysis API with timeout
-      const analysisPromise = analyzeProductImage(compressed.base64)
+      // Call analysis API with timeout (server-side route)
+      const analysisPromise = fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ imageBase64: compressed.base64 }),
+      }).then(async (res) => {
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}))
+          throw new Error(errorData.error || `HTTP ${res.status}: ${res.statusText}`)
+        }
+        return res.json()
+      })
 
-      const response = await Promise.race([analysisPromise, timeoutPromise]) as Awaited<
-        ReturnType<typeof analyzeProductImage>
-      >
+      const response = await Promise.race([analysisPromise, timeoutPromise]) as {
+        success: boolean
+        data?: any
+        error?: string
+      }
 
       if (!response.success || !response.data) {
         throw new Error(
