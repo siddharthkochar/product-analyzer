@@ -12,25 +12,45 @@ export interface N8nAnalyzeResponse {
 
 export async function analyzeProductImage(imageBase64: string): Promise<N8nAnalyzeResponse> {
   try {
+    console.log('[N8N] Calling webhook:', N8N_WEBHOOK_URL)
+    console.log('[N8N] Image data length:', imageBase64.length, 'characters')
+
+    // n8n webhook expects { "images": ["base64_string"] } format
     const response = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ imageBase64 }),
+      body: JSON.stringify({ images: [imageBase64] }),
     })
 
+    console.log('[N8N] Response status:', response.status)
+    console.log('[N8N] Response headers:', Object.fromEntries(response.headers.entries()))
+
     if (!response.ok) {
-      throw new Error(`n8n webhook failed: ${response.statusText}`)
+      const errorText = await response.text()
+      console.error('[N8N] Error response:', errorText)
+      throw new Error(`n8n webhook failed with status ${response.status}: ${response.statusText}`)
     }
 
-    const data = await response.json()
+    // Get response as text first to handle empty responses
+    const responseText = await response.text()
+    console.log('[N8N] Response text:', responseText.substring(0, 200))
+
+    if (!responseText || responseText.trim() === '') {
+      console.error('[N8N] Empty response from webhook')
+      throw new Error('n8n webhook returned empty response. The workflow may not be configured to return data.')
+    }
+
+    const data = JSON.parse(responseText)
+    console.log('[N8N] Parsed response:', data)
+
     return {
       success: true,
       data,
     }
   } catch (error) {
-    console.error('Error calling n8n webhook:', error)
+    console.error('[N8N] Error calling n8n webhook:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
