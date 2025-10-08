@@ -202,6 +202,56 @@ export async function deleteProduct(rowId: string): Promise<void> {
   }
 }
 
+// Add a new product to Google Sheets
+export async function addProduct(data: Partial<Product>): Promise<void> {
+  try {
+    const sheets = getSheetsAPI()
+    const range = `${SHEET_NAME}!A:Q`
+
+    // Calculate daysToExpire if expiryDate is provided
+    let daysToExpire = 0
+    if (data.expiryDate) {
+      const expiry = new Date(data.expiryDate)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      expiry.setHours(0, 0, 0, 0)
+      daysToExpire = Math.floor((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    }
+
+    // Create new row with product data
+    const newRow = [
+      data.productName || '', // A: Product Name
+      data.brand || 'Unknown', // B: Brand
+      data.category || 'Uncategorized', // C: Category
+      data.subCategory || 'Other', // D: Sub-category
+      data.expiryDate || '', // E: Expiry Date
+      daysToExpire, // F: Days to Expire
+      data.mrp || '', // G: MRP
+      data.weight || '', // H: Weight
+      data.quantity || 1, // I: Quantity
+      data.ingredients || '', // J: Ingredients
+      data.dateAdded || new Date().toISOString(), // K: Date Added
+      data.healthRating || '', // L: Health Ratings
+      data.healthScore || 0, // M: Health Score
+      data.concerns || '', // N: Concerns
+    ]
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [newRow],
+      },
+    })
+
+    console.log('[ADD_PRODUCT] Successfully added product:', data.productName)
+  } catch (error) {
+    console.error('[ADD_PRODUCT] Error adding product to Google Sheets:', error)
+    throw new Error('Failed to add product to Google Sheets')
+  }
+}
+
 // Check for duplicate products
 export async function checkDuplicate(productName: string, brand: string): Promise<Product | null> {
   try {

@@ -1,37 +1,64 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { Upload, X, Image as ImageIcon } from 'lucide-react'
+import { Upload, Camera, Image as ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+import { validateImageFile } from '@/lib/utils/image-compression'
 
 interface ImageUploadProps {
-  onImageSelect: (base64: string, file: File) => void
-  preview?: string | null
-  onClear?: () => void
+  onImageSelect: (file: File) => void
   disabled?: boolean
 }
 
-export function ImageUpload({ onImageSelect, preview, onClear, disabled }: ImageUploadProps) {
+export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
+  const [hasCamera, setHasCamera] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+
+  // Detect if device has camera capability
+  useEffect(() => {
+    const checkCamera = async () => {
+      try {
+        // Check if running on mobile or has camera support
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+          navigator.userAgent
+        )
+
+        // Check for mediaDevices API
+        const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+
+        setHasCamera(isMobile || hasMediaDevices)
+      } catch (error) {
+        setHasCamera(false)
+      }
+    }
+
+    checkCamera()
+  }, [])
+
+  const handleFileValidation = useCallback((file: File) => {
+    const validation = validateImageFile(file)
+    if (!validation.valid) {
+      setValidationError(validation.error || 'Invalid file')
+      return false
+    }
+    setValidationError(null)
+    return true
+  }, [])
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       if (acceptedFiles.length > 0) {
         const file = acceptedFiles[0]
-        const reader = new FileReader()
-
-        reader.onload = () => {
-          const base64 = reader.result as string
-          onImageSelect(base64, file)
+        if (handleFileValidation(file)) {
+          onImageSelect(file)
         }
-
-        reader.readAsDataURL(file)
       }
       setIsDragging(false)
     },
-    [onImageSelect]
+    [onImageSelect, handleFileValidation]
   )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -43,69 +70,128 @@ export function ImageUpload({ onImageSelect, preview, onClear, disabled }: Image
     disabled,
     onDragEnter: () => setIsDragging(true),
     onDragLeave: () => setIsDragging(false),
+    noClick: hasCamera, // Disable click when camera is available
   })
 
-  if (preview) {
-    return (
-      <Card className="relative w-full max-w-2xl mx-auto">
-        <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-          <img
-            src={preview}
-            alt="Product preview"
-            className="w-full h-full object-contain bg-muted"
-          />
-        </div>
-        {onClear && !disabled && (
-          <Button
-            variant="destructive"
-            size="icon"
-            className="absolute top-2 right-2"
-            onClick={onClear}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-      </Card>
-    )
-  }
+  const handleCameraCapture = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (file && handleFileValidation(file)) {
+        onImageSelect(file)
+      }
+      // Reset input value to allow selecting the same file again
+      if (event.target) {
+        event.target.value = ''
+      }
+    },
+    [onImageSelect, handleFileValidation]
+  )
+
+  const handleBrowseClick = useCallback(() => {
+    // Trigger the dropzone file input
+    const dropzoneInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    if (dropzoneInput && dropzoneInput !== cameraInputRef.current) {
+      dropzoneInput.click()
+    }
+  }, [])
 
   return (
-    <div
-      {...getRootProps()}
-      className={`
-        border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors
-        ${isDragActive || isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary hover:bg-primary/5'}
-      `}
-    >
-      <input {...getInputProps()} />
-      <div className="flex flex-col items-center gap-4">
-        {isDragActive || isDragging ? (
-          <>
-            <ImageIcon className="h-16 w-16 text-primary" />
-            <div>
-              <p className="text-lg font-semibold text-primary">Drop your image here</p>
-              <p className="text-sm text-muted-foreground mt-1">Release to upload</p>
-            </div>
-          </>
-        ) : (
-          <>
-            <Upload className="h-16 w-16 text-muted-foreground" />
-            <div>
-              <p className="text-lg font-semibold">Upload Product Image</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Drag and drop an image here, or click to select
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Supports: PNG, JPG, JPEG, WEBP
-              </p>
-            </div>
-            <Button type="button" variant="secondary" disabled={disabled}>
-              Select Image
-            </Button>
-          </>
-        )}
+    <div className="w-full space-y-4">
+      <div
+        {...getRootProps()}
+        className={`
+          border-2 border-dashed rounded-lg p-8 sm:p-12 text-center transition-colors
+          ${isDragActive || isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}
+          ${disabled ? 'opacity-50 cursor-not-allowed' : hasCamera ? '' : 'cursor-pointer hover:border-primary hover:bg-primary/5'}
+        `}
+      >
+        <input {...getInputProps()} aria-label="File upload input" />
+        <div className="flex flex-col items-center gap-4">
+          {isDragActive || isDragging ? (
+            <>
+              <ImageIcon className="h-16 w-16 text-primary" aria-hidden="true" />
+              <div>
+                <p className="text-lg font-semibold text-primary">Drop your image here</p>
+                <p className="text-sm text-muted-foreground mt-1">Release to upload</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <Upload className="h-16 w-16 text-muted-foreground" aria-hidden="true" />
+              <div>
+                <p className="text-lg font-semibold">Upload Product Image</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {hasCamera
+                    ? 'Take a photo or upload from your device'
+                    : 'Drag and drop an image here, or click to select'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Supports: PNG, JPG, JPEG, WEBP (max 5MB)
+                </p>
+              </div>
+
+              {hasCamera ? (
+                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md">
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleCameraCapture}
+                    className="hidden"
+                    disabled={disabled}
+                    aria-label="Camera capture input"
+                  />
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="lg"
+                    disabled={disabled}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      cameraInputRef.current?.click()
+                    }}
+                    className="flex-1"
+                    aria-label="Take photo with camera"
+                  >
+                    <Camera className="mr-2 h-5 w-5" />
+                    Take Photo
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    disabled={disabled}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleBrowseClick()
+                    }}
+                    className="flex-1"
+                    aria-label="Browse files"
+                  >
+                    <Upload className="mr-2 h-5 w-5" />
+                    Browse Files
+                  </Button>
+                </div>
+              ) : (
+                <Button type="button" variant="secondary" disabled={disabled} size="lg">
+                  Select Image
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
+
+      {validationError && (
+        <div
+          className="text-sm text-destructive text-center p-3 bg-destructive/10 rounded-md"
+          role="alert"
+          aria-live="assertive"
+        >
+          {validationError}
+        </div>
+      )}
     </div>
   )
 }

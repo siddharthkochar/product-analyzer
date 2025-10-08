@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getAllProducts } from '@/lib/google-sheets'
+import { getAllProducts, addProduct, checkDuplicate } from '@/lib/google-sheets'
+import type { Product } from '@/types/product'
 
 export async function GET() {
   try {
@@ -9,6 +10,55 @@ export async function GET() {
     console.error('GET /api/products error:', error)
     return NextResponse.json(
       { success: false, error: 'Failed to fetch products' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json()
+    const productData: Partial<Product> = body
+
+    // Validate required fields
+    if (!productData.productName) {
+      return NextResponse.json(
+        { success: false, error: 'Product name is required' },
+        { status: 400 }
+      )
+    }
+
+    // Check for duplicates
+    const duplicate = await checkDuplicate(
+      productData.productName,
+      productData.brand || 'Unknown'
+    )
+
+    if (duplicate) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Product already exists in inventory',
+          duplicate,
+        },
+        { status: 409 }
+      )
+    }
+
+    // Add product to Google Sheets
+    await addProduct({
+      ...productData,
+      dateAdded: new Date().toISOString(),
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: 'Product added successfully',
+    })
+  } catch (error) {
+    console.error('POST /api/products error:', error)
+    return NextResponse.json(
+      { success: false, error: 'Failed to add product' },
       { status: 500 }
     )
   }
