@@ -13,7 +13,7 @@ Product Analyzer is an automated system that:
 - 📅 Tracks expiry dates with human-readable alerts
 - 💊 Provides health ratings and detailed nutritional concerns
 - 📊 Stores product data in Google Sheets
-- 🌐 (Coming Soon) Web dashboard for inventory management
+- 🌐 **NEW:** Web dashboard for inventory management (Phase 2 Complete!)
 
 ---
 
@@ -260,22 +260,28 @@ GOOGLE_SHEETS_ID=1SYTiPUQtHq2BPqxn4uFRm0v0T7nr411GM2eQMwulr64
 
 ---
 
+## 🎯 Completed Features
+
+### Phase 1B: Enhanced Data Extraction ✅
+- ✅ Category & sub-category detection
+- ✅ Brand extraction
+- ✅ Quantity tracking
+- ⏸️ Duplicate product detection (deferred to Phase 3)
+
+### Phase 2: Web Dashboard ✅
+- ✅ Next.js 15.5.4 web interface with shadcn/ui
+- ✅ Product listing with sortable columns
+- ✅ Image upload via drag & drop
+- ✅ Edit & delete products
+- ✅ Health rating visualizations with tooltips
+- ✅ Color-coded expiry status badges
+- ✅ Dynamic expiry date calculation
+- ✅ React Query for server state management
+- ✅ TanStack Table for data tables
+- ✅ Responsive design with Tailwind CSS
+- 📅 Docker deployment (pending)
+
 ## 🎯 Upcoming Features
-
-### Phase 1B: Enhanced Data Extraction
-- Category & sub-category detection
-- Brand extraction
-- Duplicate product detection
-- Quantity tracking
-
-### Phase 2: Web Dashboard
-- Next.js web interface with shadcn/ui
-- Product listing with search & filters
-- Image upload via drag & drop
-- Edit & delete products
-- Category-based filtering
-- Health rating visualizations
-- Docker deployment on Raspberry Pi
 
 ### Phase 3: Advanced Features
 - Barcode scanning with fallback to image recognition
@@ -309,6 +315,6 @@ This is a personal project. Feel free to fork and adapt for your own use.
 
 ---
 
-**Last Updated**: 2025-10-05
+**Last Updated**: 2025-10-08
 **Workflow ID**: q3zvwWYkI6EKFMzi
-**Version**: 1.0.0
+**Version**: 2.0.0 (Phase 2 Complete - Web Dashboard Live!)
