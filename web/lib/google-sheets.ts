@@ -44,7 +44,7 @@ async function getSheetId(): Promise<number> {
     }
 
     console.log('[SHEET_ID] Found sheetId:', sheet.properties.sheetId, 'for sheet:', SHEET_NAME)
-    return sheet.properties.sheetId
+    return sheet.properties.sheetId as number
   } catch (error) {
     console.error('[SHEET_ID] Error getting sheetId:', error)
     throw error

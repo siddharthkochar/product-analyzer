@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    /* Foundation Colors - Light Mode */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -24,28 +25,105 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
+
+    /* Health Badge Colors - Light Mode */
+    --health-excellent-bg: 142 76% 92%;
+    --health-excellent-fg: 142 71% 25%;
+    --health-excellent-border: 142 76% 85%;
+
+    --health-good-bg: 48 96% 89%;
+    --health-good-fg: 45 93% 25%;
+    --health-good-border: 48 96% 80%;
+
+    --health-fair-bg: 24 95% 92%;
+    --health-fair-fg: 24 87% 30%;
+    --health-fair-border: 24 95% 85%;
+
+    --health-poor-bg: 0 86% 93%;
+    --health-poor-fg: 0 74% 35%;
+    --health-poor-border: 0 86% 85%;
+
+    /* Expiry Badge Colors - Light Mode */
+    --expiry-fresh-bg: 142 76% 92%;
+    --expiry-fresh-fg: 142 71% 25%;
+    --expiry-fresh-border: 142 76% 85%;
+
+    --expiry-soon-bg: 213 94% 92%;
+    --expiry-soon-fg: 213 94% 30%;
+    --expiry-soon-border: 213 94% 85%;
+
+    --expiry-warning-bg: 48 96% 89%;
+    --expiry-warning-fg: 45 93% 25%;
+    --expiry-warning-border: 48 96% 80%;
+
+    --expiry-critical-bg: 24 95% 92%;
+    --expiry-critical-fg: 24 87% 30%;
+    --expiry-critical-border: 24 95% 85%;
+
+    --expiry-expired-bg: 0 86% 93%;
+    --expiry-expired-fg: 0 74% 35%;
+    --expiry-expired-border: 0 86% 85%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    /* Foundation Colors - Dark Mode (Optimized) */
+    --background: 222.2 47% 11%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 217.2 32.6% 14%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 217.2 32.6% 14%;
     --popover-foreground: 210 40% 98%;
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 217.2 32.6% 20%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --accent: 217.2 32.6% 22%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62.8% 50%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 217.2 32.6% 20%;
+    --input: 217.2 32.6% 20%;
+    --ring: 217.2 32.6% 80%;
+
+    /* Health Badge Colors - Dark Mode */
+    --health-excellent-bg: 142 50% 20%;
+    --health-excellent-fg: 142 76% 75%;
+    --health-excellent-border: 142 50% 25%;
+
+    --health-good-bg: 45 60% 25%;
+    --health-good-fg: 48 96% 75%;
+    --health-good-border: 45 60% 30%;
+
+    --health-fair-bg: 24 70% 25%;
+    --health-fair-fg: 24 95% 75%;
+    --health-fair-border: 24 70% 30%;
+
+    --health-poor-bg: 0 60% 25%;
+    --health-poor-fg: 0 86% 75%;
+    --health-poor-border: 0 60% 30%;
+
+    /* Expiry Badge Colors - Dark Mode */
+    --expiry-fresh-bg: 142 50% 20%;
+    --expiry-fresh-fg: 142 76% 75%;
+    --expiry-fresh-border: 142 50% 25%;
+
+    --expiry-soon-bg: 213 60% 25%;
+    --expiry-soon-fg: 213 94% 75%;
+    --expiry-soon-border: 213 60% 30%;
+
+    --expiry-warning-bg: 45 60% 25%;
+    --expiry-warning-fg: 48 96% 75%;
+    --expiry-warning-border: 45 60% 30%;
+
+    --expiry-critical-bg: 24 70% 25%;
+    --expiry-critical-fg: 24 95% 75%;
+    --expiry-critical-border: 24 70% 30%;
+
+    --expiry-expired-bg: 0 60% 25%;
+    --expiry-expired-fg: 0 86% 75%;
+    --expiry-expired-border: 0 60% 30%;
   }
 }
 
@@ -55,5 +133,63 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Health Badge Variants */
+  .health-badge-excellent {
+    background-color: hsl(var(--health-excellent-bg));
+    color: hsl(var(--health-excellent-fg));
+    border: 1px solid hsl(var(--health-excellent-border));
+  }
+
+  .health-badge-good {
+    background-color: hsl(var(--health-good-bg));
+    color: hsl(var(--health-good-fg));
+    border: 1px solid hsl(var(--health-good-border));
+  }
+
+  .health-badge-fair {
+    background-color: hsl(var(--health-fair-bg));
+    color: hsl(var(--health-fair-fg));
+    border: 1px solid hsl(var(--health-fair-border));
+  }
+
+  .health-badge-poor {
+    background-color: hsl(var(--health-poor-bg));
+    color: hsl(var(--health-poor-fg));
+    border: 1px solid hsl(var(--health-poor-border));
+  }
+
+  /* Expiry Badge Variants */
+  .expiry-badge-fresh {
+    background-color: hsl(var(--expiry-fresh-bg));
+    color: hsl(var(--expiry-fresh-fg));
+    border: 1px solid hsl(var(--expiry-fresh-border));
+  }
+
+  .expiry-badge-soon {
+    background-color: hsl(var(--expiry-soon-bg));
+    color: hsl(var(--expiry-soon-fg));
+    border: 1px solid hsl(var(--expiry-soon-border));
+  }
+
+  .expiry-badge-warning {
+    background-color: hsl(var(--expiry-warning-bg));
+    color: hsl(var(--expiry-warning-fg));
+    border: 1px solid hsl(var(--expiry-warning-border));
+  }
+
+  .expiry-badge-critical {
+    background-color: hsl(var(--expiry-critical-bg));
+    color: hsl(var(--expiry-critical-fg));
+    border: 1px solid hsl(var(--expiry-critical-border));
+  }
+
+  .expiry-badge-expired {
+    background-color: hsl(var(--expiry-expired-bg));
+    color: hsl(var(--expiry-expired-fg));
+    border: 1px solid hsl(var(--expiry-expired-border));
   }
 }

@@ -13,19 +13,12 @@ interface HealthBadgeProps {
 }
 
 export function HealthBadge({ healthScore, healthRating, concerns }: HealthBadgeProps) {
-  // Determine badge variant based on health score
-  const getVariant = () => {
-    if (healthScore >= 80) return 'default' // Green - Healthy
-    if (healthScore >= 60) return 'secondary' // Yellow - Moderate
-    if (healthScore >= 40) return 'outline' // Orange - Not Healthy
-    return 'destructive' // Red - Harmful
-  }
-
-  const getBackgroundColor = () => {
-    if (healthScore >= 80) return 'bg-green-100 text-green-800 hover:bg-green-100'
-    if (healthScore >= 60) return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100'
-    if (healthScore >= 40) return 'bg-orange-100 text-orange-800 hover:bg-orange-100'
-    return 'bg-red-100 text-red-800 hover:bg-red-100'
+  // Determine badge class based on health score (using CSS variables for dark mode support)
+  const getBadgeClass = () => {
+    if (healthScore >= 80) return 'health-badge-excellent'
+    if (healthScore >= 60) return 'health-badge-good'
+    if (healthScore >= 40) return 'health-badge-fair'
+    return 'health-badge-poor'
   }
 
   // Parse concerns if it's a string (could be comma-separated or newline-separated)
@@ -37,7 +30,7 @@ export function HealthBadge({ healthScore, healthRating, concerns }: HealthBadge
     : []
 
   const badge = (
-    <Badge variant={getVariant()} className={getBackgroundColor()}>
+    <Badge variant="outline" className={getBadgeClass()}>
       {healthRating} ({healthScore})
     </Badge>
   )

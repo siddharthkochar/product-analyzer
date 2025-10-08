@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Package, Upload } from 'lucide-react'
+import { ThemeToggle } from './theme-toggle'
 
 export function Navigation() {
   return (
@@ -24,6 +25,7 @@ export function Navigation() {
               <Upload className="h-4 w-4" />
               Upload
             </Link>
+            <ThemeToggle />
           </div>
         </div>
       </div>

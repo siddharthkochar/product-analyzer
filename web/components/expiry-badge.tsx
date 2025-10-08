@@ -12,36 +12,32 @@ export function ExpiryBadge({ daysToExpire, expiryDate }: ExpiryBadgeProps) {
       const daysExpired = Math.abs(daysToExpire)
       return {
         text: `Expired ${daysExpired} day${daysExpired === 1 ? '' : 's'} ago`,
-        variant: 'destructive' as const,
         icon: AlertCircle,
-        className: 'bg-red-100 text-red-800 hover:bg-red-100',
+        className: 'expiry-badge-expired',
       }
     }
 
     if (daysToExpire === 0) {
       return {
         text: 'Expires today',
-        variant: 'destructive' as const,
         icon: AlertCircle,
-        className: 'bg-red-100 text-red-800 hover:bg-red-100',
+        className: 'expiry-badge-expired',
       }
     }
 
     if (daysToExpire === 1) {
       return {
         text: 'Expires tomorrow',
-        variant: 'secondary' as const,
         icon: Clock,
-        className: 'bg-orange-100 text-orange-800 hover:bg-orange-100',
+        className: 'expiry-badge-critical',
       }
     }
 
     if (daysToExpire <= 7) {
       return {
         text: `${daysToExpire} days`,
-        variant: 'secondary' as const,
         icon: Clock,
-        className: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100',
+        className: 'expiry-badge-warning',
       }
     }
 
@@ -54,9 +50,8 @@ export function ExpiryBadge({ daysToExpire, expiryDate }: ExpiryBadgeProps) {
 
       return {
         text,
-        variant: 'outline' as const,
         icon: Clock,
-        className: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
+        className: 'expiry-badge-soon',
       }
     }
 
@@ -69,9 +64,8 @@ export function ExpiryBadge({ daysToExpire, expiryDate }: ExpiryBadgeProps) {
 
     return {
       text,
-      variant: 'default' as const,
       icon: CheckCircle,
-      className: 'bg-green-100 text-green-800 hover:bg-green-100',
+      className: 'expiry-badge-fresh',
     }
   }
 
@@ -79,7 +73,7 @@ export function ExpiryBadge({ daysToExpire, expiryDate }: ExpiryBadgeProps) {
   const Icon = status.icon
 
   return (
-    <Badge variant={status.variant} className={`${status.className} flex items-center gap-1`}>
+    <Badge variant="outline" className={`${status.className} flex items-center gap-1`}>
       <Icon className="h-3 w-3" />
       {status.text}
     </Badge>

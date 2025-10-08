@@ -333,7 +333,7 @@ Return ONLY valid JSON with no markdown.
 - Cancel → Close dialog
 
 **4. Additional Features**
-- Dark mode toggle (optional)
+- Dark mode toggle ✅ **COMPLETE**
 - Responsive design (mobile-first)
 - Loading skeletons
 - Empty states
@@ -624,8 +624,74 @@ NEXT_PUBLIC_APP_URL=https://products.kochar.dev
 
 ---
 
+### Phase 2.5: Dark Mode ✅ **COMPLETE**
+
+**Status**: Production-ready
+**Completed**: 2025-10-08
+**Priority**: Medium
+
+#### Implementation Details
+
+**Technology Stack**
+- `next-themes` v0.4.6 - Theme management with SSR support
+- CSS Variables - HSL-based color system
+- Tailwind CSS - Dark mode utility classes
+
+**Features Delivered**
+- [x] Installed and configured `next-themes`
+- [x] Created ThemeProvider wrapper component
+- [x] Integrated ThemeProvider in root layout
+- [x] Updated `globals.css` with optimized dark mode colors
+- [x] Added semantic CSS variables for health badges
+- [x] Added semantic CSS variables for expiry badges
+- [x] Created ThemeToggle component with Sun/Moon icons
+- [x] Updated HealthBadge component to use CSS variables
+- [x] Updated ExpiryBadge component to use CSS variables
+- [x] Added theme toggle to Navigation bar
+- [x] System theme detection enabled
+- [x] Theme persistence via localStorage
+
+**Color System**
+- **Dark Background**: HSL `222.2 47% 11%` (optimized from `4.9%` for better readability)
+- **Health Badges**: Dynamic colors that adapt to light/dark mode
+  - Excellent (80-100): Green shades
+  - Good (60-79): Yellow/Amber shades
+  - Fair (40-59): Orange shades
+  - Poor (0-39): Red shades
+- **Expiry Badges**: Dynamic colors that adapt to light/dark mode
+  - Fresh (30+ days): Green shades
+  - Soon (8-30 days): Blue shades
+  - Warning (1-7 days): Yellow shades
+  - Critical (tomorrow): Orange shades
+  - Expired: Red shades
+
+**Accessibility**
+- WCAG AA compliant contrast ratios
+- Smooth theme transitions
+- System preference detection
+- Hydration-safe rendering
+- Keyboard accessible toggle
+
+**Files Modified**
+- `web/package.json` - Added next-themes dependency
+- `web/app/globals.css` - Enhanced with dark mode CSS variables
+- `web/app/layout.tsx` - Added ThemeProvider
+- `web/components/theme-provider.tsx` - Created wrapper component
+- `web/components/theme-toggle.tsx` - Created toggle button
+- `web/components/navigation.tsx` - Added theme toggle to nav
+- `web/components/health-badge.tsx` - Converted to CSS variables
+- `web/components/expiry-badge.tsx` - Converted to CSS variables
+
+**Bug Fixes During Implementation**
+- Fixed Next.js 15 params type (now requires `Promise<{}>`)
+- Fixed Zod validation schema for quantity field
+- Fixed ThemeProvider type imports
+- Fixed Google Sheets type assertion
+
+---
+
 **Last Updated**: 2025-10-08
-**Current Phase**: Phase 2 Complete ✅ (Web Dashboard Production-Ready)
+**Current Phase**: Phase 2 Complete ✅ (Web Dashboard Production-Ready + Dark Mode)
 **Next Milestone**: Phase 2 - Docker Deployment or Phase 3 - Advanced Features
 **Workflow Version**: Updated at 2025-10-05T15:00:44.135Z
-**Git Commits**: Multiple (Initial commit + Phase 1B + Phase 2 Web Dashboard)
+**Git Commits**: Multiple (Initial commit + Phase 1B + Phase 2 Web Dashboard + Dark Mode)
