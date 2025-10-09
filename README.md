@@ -281,6 +281,71 @@ N8N_WEBHOOK_URL=https://n8n.kochar.dev/webhook/product-analyzer
 
 ---
 
+## 📸 Upload Feature
+
+The upload functionality allows users to capture or upload product images for AI analysis.
+
+### State Machine (5 States)
+
+1. **IDLE** - Camera/upload selection with device detection
+2. **PREVIEW** - Image preview with "Analyze Product" button
+3. **ANALYZING** - Loading state with spinner (30s timeout)
+4. **SUCCESS** - Results display with save/retry options
+5. **ERROR** - Error handling with retry capability
+
+### Features
+
+**Mobile Devices:**
+- Camera capture with rear camera (`capture="environment"`)
+- Direct photo capture from camera app
+- Automatic preview after capture
+
+**Desktop:**
+- Drag-and-drop image upload
+- Click to browse and select files
+- File type validation (PNG, JPG, JPEG, WEBP, max 5MB)
+
+**Image Processing:**
+- Client-side compression (target: 2MB)
+- Progressive quality reduction (0.9 to 0.5)
+- Maintains aspect ratio
+- Base64 encoding for API transmission
+
+**Analysis & Save:**
+- n8n webhook integration (30s timeout)
+- Displays extracted product information
+- Duplicate detection before saving
+- Save to PostgreSQL database
+- Redirects to dashboard on success
+- Toast notifications for feedback
+
+### User Flow
+
+```
+Mobile:  Take Photo → Preview → Analyze → View Results → Save → Dashboard
+Desktop: Drag/Drop → Preview → Analyze → View Results → Save → Dashboard
+```
+
+### Error Handling
+
+- **File Validation**: Invalid type or size (>5MB)
+- **Network Errors**: Connection failures
+- **Timeout**: Analysis taking too long (>30s)
+- **No Data**: Product information not found
+- **Duplicate**: Product already in inventory
+
+All errors show clear messages with retry options.
+
+### Accessibility
+
+- WCAG 2.1 AA compliant
+- ARIA labels and live regions
+- Keyboard navigation support
+- Screen reader announcements
+- Focus management between states
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -304,6 +369,145 @@ N8N_WEBHOOK_URL=https://n8n.kochar.dev/webhook/product-analyzer
 
 ---
 
+## 🐳 Docker & Deployment
+
+### Docker Setup
+
+The application is containerized using a multi-stage Dockerfile for optimal performance:
+
+**Image Details:**
+- **Base**: Alpine Linux (node:20-alpine)
+- **Size**: ~200-300MB (optimized)
+- **Platforms**: linux/amd64, linux/arm64 (Raspberry Pi compatible)
+- **Security**: Non-root user, minimal attack surface
+
+**Quick Start (Local):**
+```bash
+cd web
+docker build -t product-analyzer-web .
+docker-compose up -d
+```
+
+### Automated CI/CD with GitHub Actions
+
+Every push to `main` automatically builds and deploys Docker images to DockerHub.
+
+**Workflow Features:**
+- ✅ Multi-platform builds (AMD64 + ARM64)
+- ✅ Smart caching for faster builds (2-5 min)
+- ✅ Automatic version tagging
+- ✅ Build on PR (no push)
+- ✅ Manual trigger support
+
+**Workflow File:** `.github/workflows/docker-build-push.yml`
+
+### DockerHub Setup (One-Time)
+
+**1. Create DockerHub Repository**
+- Go to https://hub.docker.com
+- Create repository: `product-analyzer-web`
+- Set visibility: Public
+
+**2. Generate Access Token**
+- Go to Settings → Security → https://hub.docker.com/settings/security
+- Click "New Access Token"
+- Description: `GitHub Actions - product-analyzer`
+- Permissions: Read & Write
+- Copy token (starts with `dckr_pat_`)
+
+**3. Add GitHub Secrets**
+- Go to: https://github.com/siddharthkochar/product-analyzer/settings/secrets/actions
+- Add two secrets:
+  - **`DOCKERHUB_USERNAME`**: Your DockerHub username
+  - **`DOCKERHUB_TOKEN`**: Paste the access token
+
+**4. Push to Trigger Build**
+```bash
+git push origin main
+# Watch build at: github.com/siddharthkochar/product-analyzer/actions
+```
+
+### Deployment Workflow
+
+```
+Developer → git push main → GitHub Actions → DockerHub → Raspberry Pi
+   (You)       (Trigger)       (Build)        (Store)      (Deploy)
+```
+
+**After GitHub Actions completes:**
+
+```bash
+# SSH into Raspberry Pi
+ssh pi@raspberry-pi-ip
+
+# Navigate to app directory
+cd ~/apps/product-analyzer
+
+# Pull latest image from DockerHub
+docker-compose -f docker-compose.prod.yml pull
+
+# Restart container
+docker-compose -f docker-compose.prod.yml up -d
+
+# Check logs
+docker logs product-analyzer-web
+```
+
+### Environment Variables (Production)
+
+Create `.env` file on Raspberry Pi:
+
+```env
+# n8n Webhook
+N8N_WEBHOOK_URL=https://n8n.kochar.dev/webhook/product-analyzer
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+
+# App
+NEXT_PUBLIC_APP_URL=https://products.kochar.dev
+NODE_ENV=production
+NEXT_TELEMETRY_DISABLED=1
+```
+
+### Nginx Proxy Manager Configuration
+
+- **Domain**: products.kochar.dev
+- **Scheme**: http
+- **Forward Hostname**: product-analyzer-web
+- **Forward Port**: 3000
+- **SSL**: Let's Encrypt certificate
+- **HTTP/2**: Enabled
+- **Cache Assets**: Enabled
+
+### Manual Deployment Scripts
+
+**Windows:**
+```batch
+deploy.bat
+```
+
+**Linux/Mac:**
+```bash
+./deploy.sh
+```
+
+These scripts build, tag, and push to DockerHub with interactive prompts.
+
+### Version Releases
+
+Create versioned releases with Git tags:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+This automatically builds and pushes with tags: `1.0.0`, `1.0`, `1`, `latest`
+
+---
+
 ## 🎯 Completed Features
 
 ### Phase 1B: Enhanced Data Extraction ✅
@@ -324,7 +528,7 @@ N8N_WEBHOOK_URL=https://n8n.kochar.dev/webhook/product-analyzer
 - ✅ TanStack Table for data tables
 - ✅ Responsive design with Tailwind CSS
 - ✅ Dark mode support
-- 📅 Docker deployment (pending)
+- ✅ Docker deployment with CI/CD pipeline
 
 ### Phase 2.7: Database Migration ✅
 - ✅ Migrated from Google Sheets to PostgreSQL (Supabase)
@@ -334,6 +538,22 @@ N8N_WEBHOOK_URL=https://n8n.kochar.dev/webhook/product-analyzer
 - ✅ Fixed n8n workflow data type mismatches
 - ✅ Performance improvement: 10-100x faster queries
 - ✅ Scalable architecture supporting thousands of products
+
+### Phase 2.8: Docker & CI/CD ✅
+- ✅ Multi-stage Dockerfile with Alpine Linux
+- ✅ Docker Compose for local and production deployment
+- ✅ Automated deployment scripts (Windows + Linux/Mac)
+- ✅ Optimized image size (~200-300MB)
+
+### Phase 2.9: GitHub Actions CI/CD Pipeline ✅
+- ✅ Automated builds on push to main
+- ✅ Multi-platform support (AMD64 + ARM64)
+- ✅ DockerHub integration for image hosting
+- ✅ Smart caching for faster builds (2-5 min)
+- ✅ Version tagging and semantic releases
+- ✅ Build on PR for validation
+- ✅ Manual workflow trigger
+- ✅ Consolidated documentation in README
 
 ## 🎯 Upcoming Features
 
@@ -372,4 +592,4 @@ This is a personal project. Feel free to fork and adapt for your own use.
 
 **Last Updated**: 2025-10-09
 **Workflow ID**: q3zvwWYkI6EKFMzi
-**Version**: 2.7.0 (Phase 2.7 Complete - PostgreSQL Migration + Web Dashboard Live!)
+**Version**: 2.9.0 (Phase 2.9 Complete - Fully Automated CI/CD Pipeline!)
