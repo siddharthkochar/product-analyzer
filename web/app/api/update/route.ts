@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateProduct } from '@/lib/google-sheets'
+import { updateProduct } from '@/lib/db'
 import { Product } from '@/types/product'
 
 export async function POST(request: NextRequest) {
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
 
     if (!rowId) {
       return NextResponse.json(
-        { success: false, error: 'Row ID is required' },
+        { success: false, error: 'Product ID is required' },
         { status: 400 }
       )
     }
@@ -21,11 +21,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await updateProduct(rowId, data)
+    const updatedProduct = await updateProduct(rowId, data)
 
     return NextResponse.json({
       success: true,
       message: 'Product updated successfully',
+      data: updatedProduct,
     })
   } catch (error) {
     console.error('Update product error:', error)

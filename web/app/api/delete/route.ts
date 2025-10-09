@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { deleteProduct } from '@/lib/google-sheets'
+import { deleteProduct } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {

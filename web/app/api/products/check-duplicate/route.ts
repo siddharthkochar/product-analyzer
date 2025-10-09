@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { checkDuplicate } from '@/lib/google-sheets'
+import { checkDuplicate } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {

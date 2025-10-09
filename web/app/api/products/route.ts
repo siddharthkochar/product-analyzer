@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAllProducts, addProduct, checkDuplicate } from '@/lib/google-sheets'
+import { getAllProducts, addProduct, checkDuplicate } from '@/lib/db'
 import type { Product } from '@/types/product'
 
 export async function GET() {
@@ -45,8 +45,8 @@ export async function POST(request: Request) {
       )
     }
 
-    // Add product to Google Sheets
-    await addProduct({
+    // Add product to database
+    const newProduct = await addProduct({
       ...productData,
       dateAdded: new Date().toISOString(),
     })
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: 'Product added successfully',
+      data: newProduct,
     })
   } catch (error) {
     console.error('POST /api/products error:', error)

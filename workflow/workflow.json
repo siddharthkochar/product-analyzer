@@ -49,7 +49,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Analyze health rating based on ingredients and nutrition\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  // Skip if error\n  if (data.error) {\n    items.push({\n      json: {\n        ...data,\n        healthRating: 'Unknown',\n        healthScore: 0,\n        concerns: []\n      },\n      pairedItem: { item: 0 }\n    });\n    continue;\n  }\n  \n  const ingredients = (data.ingredients || '').toLowerCase();\n  const nutrition = data.nutrition || {};\n  \n  let score = 100; // Start with perfect score\n  const concerns = [];\n  \n  // Check for harmful ingredients\n  const harmfulIngredients = [\n    { name: 'Contains trans fats which increase bad cholesterol and heart disease risk', penalty: 40, pattern: /trans.?fat|partially hydrogenated|hydrogenated oil/ },\n    { name: 'Contains high fructose corn syrup linked to obesity and diabetes', penalty: 25, pattern: /high.?fructose.?corn.?syrup|hfcs/ },\n    { name: 'Contains artificial sweeteners which may affect metabolism and gut health', penalty: 20, pattern: /aspartame|sucralose|saccharin|acesulfame/ },\n    { name: 'Contains MSG (flavor enhancer) which may cause sensitivity in some people', penalty: 15, pattern: /monosodium.?glutamate|msg|e621/ },\n    { name: 'Contains sodium nitrite (preservative) linked to cancer risk when consumed regularly', penalty: 20, pattern: /sodium.?nitrite|e250/ },\n    { name: 'Contains artificial colors which may cause hyperactivity in children', penalty: 15, pattern: /tartrazine|e102|e110|e129|sunset yellow|red 40/ },\n    { name: 'Contains palm oil which is high in saturated fat', penalty: 10, pattern: /palm.?oil/ },\n    { name: 'Contains multiple preservatives which may have cumulative health effects', penalty: 10, pattern: /(e2\\d{2}|preservative).*?(e2\\d{2}|preservative)/ }\n  ];\n  \n  harmfulIngredients.forEach(item => {\n    if (item.pattern.test(ingredients)) {\n      score -= item.penalty;\n      concerns.push(item.name);\n    }\n  });\n  \n  // Check nutritional values (per 100g/100ml) - handle null values\n  if (nutrition.sugarG != null && nutrition.sugarG > 15) {\n    score -= 15;\n    concerns.push(`High sugar content (${nutrition.sugarG}g per 100g) - linked to weight gain and diabetes`);\n  }\n  \n  if (nutrition.sodiumMg != null && nutrition.sodiumMg > 500) {\n    score -= 15;\n    concerns.push(`High sodium content (${nutrition.sodiumMg}mg per 100g) - may increase blood pressure`);\n  }\n  \n  if (nutrition.saturatedFatG != null && nutrition.saturatedFatG > 5) {\n    score -= 15;\n    concerns.push(`High saturated fat (${nutrition.saturatedFatG}g per 100g) - raises cholesterol levels`);\n  }\n  \n  if (nutrition.transFatG != null && nutrition.transFatG > 0) {\n    score -= 30;\n    concerns.push(`Contains trans fat (${nutrition.transFatG}g per 100g) - extremely harmful to heart health`);\n  }\n  \n  // Positive factors - handle null values\n  if (nutrition.fiberG != null && nutrition.fiberG >= 5) {\n    score += 5;\n  }\n  \n  if (nutrition.proteinG != null && nutrition.proteinG >= 10) {\n    score += 5;\n  }\n  \n  // Ensure score is between 0-100\n  score = Math.max(0, Math.min(100, score));\n  \n  // Determine rating\n  let rating = '';\n  if (score >= 80) {\n    rating = 'Healthy';\n  } else if (score >= 60) {\n    rating = 'Moderate';\n  } else if (score >= 40) {\n    rating = 'Not Healthy';\n  } else {\n    rating = 'Harmful';\n  }\n  \n  items.push({\n    json: {\n      ...data,\n      healthRating: rating,\n      healthScore: score,\n      concerns: concerns\n    },\n    pairedItem: { item: 0 }\n  });\n}\n\nreturn items;"
+        "jsCode": "// Analyze health rating based on ingredients and nutrition\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  // Skip if error\n  if (data.error) {\n    items.push({\n      json: {\n        ...data,\n        healthRating: 'Unknown',\n        healthScore: 0,\n        concerns: []\n      },\n      pairedItem: { item: 0 }\n    });\n    continue;\n  }\n  \n  const ingredients = (data.ingredients || '').toLowerCase();\n  const nutrition = data.nutrition || {};\n  \n  let score = 100; // Start with perfect score\n  const concerns = [];\n  \n  // Check for harmful ingredients\n  const harmfulIngredients = [\n    { name: 'Contains trans fats which increase bad cholesterol and heart disease risk', penalty: 40, pattern: /trans.?fat|partially hydrogenated|hydrogenated oil/ },\n    { name: 'Contains high fructose corn syrup linked to obesity and diabetes', penalty: 25, pattern: /high.?fructose.?corn.?syrup|hfcs/ },\n    { name: 'Contains artificial sweeteners which may affect metabolism and gut health', penalty: 20, pattern: /aspartame|sucralose|saccharin|acesulfame/ },\n    { name: 'Contains MSG (flavor enhancer) which may cause sensitivity in some people', penalty: 15, pattern: /monosodium.?glutamate|msg|e621/ },\n    { name: 'Contains sodium nitrite (preservative) linked to cancer risk when consumed regularly', penalty: 20, pattern: /sodium.?nitrite|e250/ },\n    { name: 'Contains artificial colors which may cause hyperactivity in children', penalty: 15, pattern: /tartrazine|e102|e110|e129|sunset yellow|red 40/ },\n    { name: 'Contains palm oil which is high in saturated fat', penalty: 10, pattern: /palm.?oil/ },\n    { name: 'Contains multiple preservatives which may have cumulative health effects', penalty: 10, pattern: /(e2\\d{2}|preservative).*?(e2\\d{2}|preservative)/ }\n  ];\n  \n  harmfulIngredients.forEach(item => {\n    if (item.pattern.test(ingredients)) {\n      score -= item.penalty;\n      concerns.push(item.name);\n    }\n  });\n  \n  // Check nutritional values (per 100g/100ml) - handle null values\n  if (nutrition.sugarG != null && nutrition.sugarG > 15) {\n    score -= 15;\n    concerns.push(`High sugar content (${nutrition.sugarG}g per 100g) - linked to weight gain and diabetes`);\n  }\n  \n  if (nutrition.sodiumMg != null && nutrition.sodiumMg > 500) {\n    score -= 15;\n    concerns.push(`High sodium content (${nutrition.sodiumMg}mg per 100g) - may increase blood pressure`);\n  }\n  \n  if (nutrition.saturatedFatG != null && nutrition.saturatedFatG > 5) {\n    score -= 15;\n    concerns.push(`High saturated fat (${nutrition.saturatedFatG}g per 100g) - raises cholesterol levels`);\n  }\n  \n  if (nutrition.transFatG != null && nutrition.transFatG > 0) {\n    score -= 30;\n    concerns.push(`Contains trans fat (${nutrition.transFatG}g per 100g) - extremely harmful to heart health`);\n  }\n  \n  // Positive factors - handle null values\n  if (nutrition.fiberG != null && nutrition.fiberG >= 5) {\n    score += 5;\n  }\n  \n  if (nutrition.proteinG != null && nutrition.proteinG >= 10) {\n    score += 5;\n  }\n  \n  // Ensure score is between 0-100\n  score = Math.max(0, Math.min(100, score));\n  \n  // Cap score at 99.9 for database NUMERIC(3,1) constraint\n  score = Math.min(99.9, score);\n  \n  // Determine rating\n  let rating = '';\n  if (score >= 80) {\n    rating = 'Healthy';\n  } else if (score >= 60) {\n    rating = 'Moderate';\n  } else if (score >= 40) {\n    rating = 'Not Healthy';\n  } else {\n    rating = 'Harmful';\n  }\n  \n  items.push({\n    json: {\n      ...data,\n      healthRating: rating,\n      healthScore: score,\n      concerns: concerns\n    },\n    pairedItem: { item: 0 }\n  });\n}\n\nreturn items;"
       },
       "id": "code-health-rating",
       "name": "Analyze Health Rating",
@@ -59,159 +59,21 @@
         1104,
         304
       ],
-      "notes": "Analyzes health rating based on ingredients and nutrition.\n\nScoring (0-100):\n- Harmful ingredients: -10 to -40 points\n- High sugar/sodium/fat: -15 points each\n- Trans fat: -30 points\n- High fiber/protein: +5 points each\n\nRatings:\n- 80-100: Healthy\n- 60-79: Moderate\n- 40-59: Not Healthy\n- 0-39: Harmful"
+      "notes": "Analyzes health rating based on ingredients and nutrition.\n\nScoring (0-100, capped at 99.9):\n- Harmful ingredients: -10 to -40 points\n- High sugar/sodium/fat: -15 points each\n- Trans fat: -30 points\n- High fiber/protein: +5 points each\n\nRatings:\n- 80-100: Healthy\n- 60-79: Moderate\n- 40-59: Not Healthy\n- 0-39: Harmful"
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "1SYTiPUQtHq2BPqxn4uFRm0v0T7nr411GM2eQMwulr64",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 505064720,
-          "mode": "list",
-          "cachedResultName": "Products",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1SYTiPUQtHq2BPqxn4uFRm0v0T7nr411GM2eQMwulr64/edit#gid=505064720"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Product Name": "={{ $json.productName }}",
-            "Brand": "={{ $json.brand }}",
-            "Category": "={{ $json.category }}",
-            "Sub-category": "={{ $json.subCategory }}",
-            "Expiry Date": "={{ $json.expiryDate }}",
-            "Days to Expire": "={{ $json.daysToExpire }}",
-            "MRP": "={{ $json.mrp }}",
-            "Weight": "={{ $json.weight }}",
-            "Quantity": "={{ $json.quantity }}",
-            "Ingredients": "={{ $json.ingredients }}",
-            "Date Added": "={{ $json.extractedAt }}",
-            "Health Ratings": "={{ $json.healthRating }}",
-            "Health Score": "={{ $json.healthScore }}",
-            "Concerns": "={{ $json.concerns.join(', ') }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "Product Name",
-              "displayName": "Product Name",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Expiry Date",
-              "displayName": "Expiry Date",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Days to Expire",
-              "displayName": "Days to Expire",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "MRP",
-              "displayName": "MRP",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Weight",
-              "displayName": "Weight",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Health Ratings",
-              "displayName": "Health Ratings",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Ingredients",
-              "displayName": "Ingredients",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Nutritional Info",
-              "displayName": "Nutritional Info",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "Date Added",
-              "displayName": "Date Added",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "Image URLs",
-              "displayName": "Image URLs",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {
-          "useAppend": true
-        }
+        "jsCode": "// Prepare data for Supabase insert - fix type mismatches\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  // Convert nutrition object to JSON string for TEXT field\n  const nutritionString = data.nutrition ? JSON.stringify(data.nutrition) : null;\n  \n  // Convert concerns array to newline-separated string for TEXT field\n  const concernsString = Array.isArray(data.concerns) && data.concerns.length > 0\n    ? data.concerns.join('\\n')\n    : null;\n  \n  // Ensure health_score fits NUMERIC(3,1) constraint (max 99.9)\n  let healthScore = data.healthScore || 0;\n  if (healthScore > 99.9) {\n    healthScore = 99.9;\n  }\n  if (healthScore < 0) {\n    healthScore = 0;\n  }\n  // Round to 1 decimal place\n  healthScore = Math.round(healthScore * 10) / 10;\n  \n  items.push({\n    json: {\n      ...data,\n      // Override with database-compatible formats\n      nutritionalInfo: nutritionString,\n      concernsText: concernsString,\n      healthScore: healthScore\n    },\n    pairedItem: { item: 0 }\n  });\n}\n\nreturn items;"
       },
-      "id": "sheets-append",
-      "name": "Store in Google Sheets",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
+      "id": "code-prepare-for-db",
+      "name": "Prepare for Database",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1328,
+        1208,
         304
       ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "UT9pLvtdd7GRqhTh",
-          "name": "Google Sheets account"
-        }
-      },
-      "notes": "Appends product data to Google Sheets.\n\nSetup:\n1. Create Google Sheet with columns:\n   Product Name, Expiry Date, Days to Expire, Expiry Status, MRP, Weight, Health Rating, Health Score, Concerns, Ingredients, Energy (kcal), Protein (g), Carbs (g), Sugar (g), Fat (g), Saturated Fat (g), Trans Fat (g), Sodium (mg), Fiber (g), Date Added\n\n2. Replace YOUR_SPREADSHEET_ID with actual ID\n3. Configure Google Sheets OAuth2 credentials\n4. Add conditional formatting for expiry status and health rating"
+      "notes": "Transforms data types to match Supabase schema:\n\n- nutrition object → JSON string (TEXT)\n- concerns array → newline-separated string (TEXT)\n- health_score capped at 99.9 (NUMERIC(3,1))\n- Handles null values safely"
     },
     {
       "parameters": {
@@ -242,53 +104,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1552,
+        1632,
         304
       ],
       "notes": "Checks if product expires within 7 days.\n\nConditions:\n- Days to expire <= 7\n- Not already expired\n\nTrue = Send WhatsApp alert\nFalse = Skip notification"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "http://YOUR_EVOLUTION_API_URL/message/sendText/YOUR_INSTANCE",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "number",
-              "value": "YOUR_PHONE_NUMBER"
-            },
-            {
-              "name": "text",
-              "value": "=\u26a0\ufe0f *EXPIRY ALERT*\\n\\n\ud83d\udce6 Product: {{ $json.productName }}\\n\u23f0 Expires in: {{ $json.daysToExpire }}\\n\ud83d\udcb0 MRP: {{ $json.mrp }}\\n\u2696\ufe0f Weight: {{ $json.weight }}\\n\ud83d\udc8a Health Rating: {{ $json.healthRating }}\\n\\n{{ $json.concerns.length > 0 ? '\u26a0\ufe0f Concerns: ' + $json.concerns.join(', ') : '' }}\\n\\nCheck your pantry! \ud83c\udfe0"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "http-whatsapp",
-      "name": "Send WhatsApp Alert",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1776,
-        224
-      ],
-      "disabled": true,
-      "notes": "Sends WhatsApp notification via Evolution API.\n\nSetup:\n1. Deploy Evolution API (self-hosted, free)\n2. Replace YOUR_EVOLUTION_API_URL with actual URL\n3. Replace YOUR_INSTANCE with instance name\n4. Replace YOUR_PHONE_NUMBER with format: 91XXXXXXXXXX (country code + number)\n\nEvolution API Docs: https://doc.evolution-api.com/"
-    },
-    {
-      "parameters": {},
-      "id": "noop-no-alert",
-      "name": "No Alert Needed",
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        1776,
-        384
-      ],
-      "disabled": true,
-      "notes": "Product expires in >7 days - no immediate alert needed"
     },
     {
       "parameters": {
@@ -301,7 +120,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        1984,
+        2016,
         304
       ],
       "notes": "Returns JSON response to webhook caller.\n\nResponse includes:\n- Success status\n- Product name\n- Expiry information\n- Health rating\n- Alert sent status"
@@ -318,6 +137,7 @@
         },
         "text": "Analyze this product packaging image and extract the following information for this consumable item:\n\n  - Product Name (full name including brand)\n  - Brand (manufacturer/brand name separately, e.g., \"Britannia\", \"Parle\", \"Amul\")\n  - Category (main product type: Snacks, Beverages, Dairy, Bakery, Confectionery, Frozen Foods, Ready to Eat, Condiments, etc.)\n  - Sub-category (specific type: Biscuits, Chips, Cookies, Chocolates, Juice, Milk, Cheese, Bread, etc.)\n  - Expiry Date (format as YYYY-MM-DD, look for \"Best Before\", \"Exp Date\", \"Use By\")\n  - MRP (Maximum Retail Price with currency symbol)\n  - Weight/Quantity (with unit like g, kg, ml, L)\n  - Ingredients (complete comma-separated list)\n  - Nutritional Information (key nutrients per 100g/100ml: Energy/Calories, Protein, Carbohydrates, Total Sugar, Total Fat, Saturated Fat, Trans Fat, Sodium, Fiber)\n\n  IMPORTANT: Return ONLY valid JSON with no markdown formatting or code blocks.\n\n  JSON format:\n  {\n    \"productName\": \"string\",\n    \"brand\": \"string\",\n    \"category\": \"string\",\n    \"subCategory\": \"string\",\n    \"expiryDate\": \"YYYY-MM-DD\",\n    \"mrp\": \"string with currency\",\n    \"weight\": \"string with unit\",\n    \"ingredients\": \"comma-separated string\",\n    \"nutrition\": {\n      \"energyKcal\": number,\n      \"proteinG\": number,\n      \"carbsG\": number,\n      \"sugarG\": number,\n      \"fatG\": number,\n      \"saturatedFatG\": number,\n      \"transFatG\": number,\n      \"sodiumMg\": number,\n      \"fiberG\": number\n    }\n  }",
         "inputType": "binary",
+        "binaryPropertyName": "image",
         "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
@@ -334,8 +154,89 @@
           "name": "Google Gemini(PaLM) Api account"
         }
       }
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "tableId": "products",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "product_name",
+              "fieldValue": "={{ $json.productName }}"
+            },
+            {
+              "fieldId": "brand",
+              "fieldValue": "={{ $json.brand }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.category }}"
+            },
+            {
+              "fieldId": "sub_category",
+              "fieldValue": "={{ $json.subCategory }}"
+            },
+            {
+              "fieldId": "expiry_date",
+              "fieldValue": "={{ $json.expiryDate }}"
+            },
+            {
+              "fieldId": "mrp",
+              "fieldValue": "={{ $json.mrp }}"
+            },
+            {
+              "fieldId": "weight",
+              "fieldValue": "={{ $json.weight }}"
+            },
+            {
+              "fieldId": "ingredients",
+              "fieldValue": "={{ $json.ingredients }}"
+            },
+            {
+              "fieldId": "nutritional_info",
+              "fieldValue": "={{ $json.nutritionalInfo }}"
+            },
+            {
+              "fieldId": "health_score",
+              "fieldValue": "={{ $json.healthScore }}"
+            },
+            {
+              "fieldId": "health_rating",
+              "fieldValue": "={{ $json.healthRating }}"
+            },
+            {
+              "fieldId": "concerns",
+              "fieldValue": "={{ $json.concernsText }}"
+            },
+            {
+              "fieldId": "quantity",
+              "fieldValue": "={{ $json.quantity }}"
+            },
+            {
+              "fieldId": "date_added",
+              "fieldValue": "={{ $json.extractedAt }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1416,
+        304
+      ],
+      "id": "4ae20e92-28b4-4fb6-af15-6258b3789ce3",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "3czhVe1wGJUnugKf",
+          "name": "Supabase account"
+        }
+      }
     }
   ],
+  "pinData": {},
   "connections": {
     "Webhook - Receive Images": {
       "main": [
@@ -374,18 +275,18 @@
       "main": [
         [
           {
-            "node": "Store in Google Sheets",
+            "node": "Prepare for Database",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Store in Google Sheets": {
+    "Prepare for Database": {
       "main": [
         [
           {
-            "node": "Check Expiry Alert",
+            "node": "Create a row",
             "type": "main",
             "index": 0
           }
@@ -396,33 +297,11 @@
       "main": [
         [
           {
-            "node": "Send WhatsApp Alert",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "No Alert Needed",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send WhatsApp Alert": {
-      "main": [
-        [
-          {
             "node": "Webhook Response",
             "type": "main",
             "index": 0
           }
-        ]
-      ]
-    },
-    "No Alert Needed": {
-      "main": [
+        ],
         [
           {
             "node": "Webhook Response",
@@ -442,9 +321,28 @@
           }
         ]
       ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Check Expiry Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
+  "active": true,
   "settings": {
     "executionOrder": "v1"
-  }
+  },
+  "versionId": "48529c86-aa95-4eb7-b61d-65dcd1c6df48",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "90b44310c8c08fb86dbf01f80fbd8baeb488eecbeea02ac56339a0d74268ca4f"
+  },
+  "id": "q3zvwWYkI6EKFMzi",
+  "tags": []
 }
