@@ -1,6 +1,7 @@
 name: Build and Push Docker Image
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -14,7 +15,6 @@ on:
       - main
     paths:
       - 'web/**'
-  workflow_dispatch:
 
 env:
   DOCKER_IMAGE: sidkcr/product-analyzer-web
