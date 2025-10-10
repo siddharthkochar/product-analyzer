@@ -14,10 +14,22 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Next.js collects completely anonymous telemetry data about general usage.
-# Learn more here: https://nextjs.org/telemetry
-# Disable telemetry during the build
-ENV NEXT_TELEMETRY_DISABLED=1
+# Accept build arguments from GitHub Actions
+ARG NEXT_TELEMETRY_DISABLED
+ARG NODE_ENV
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG N8N_WEBHOOK_URL
+ARG NEXT_PUBLIC_APP_URL
+
+# Set environment variables for Next.js build
+# NEXT_PUBLIC_ variables are embedded into the client-side bundle at build time
+ENV NEXT_TELEMETRY_DISABLED=$NEXT_TELEMETRY_DISABLED
+ENV NODE_ENV=$NODE_ENV
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV N8N_WEBHOOK_URL=$N8N_WEBHOOK_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 # Build Next.js application (standalone output configured in next.config.js)
 RUN npm run build
