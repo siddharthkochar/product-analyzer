@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getAllProducts, addProduct, checkDuplicate } from '@/lib/db'
+import { getAllProducts, checkDuplicate } from '@/lib/db'
+import { saveProductToDatabase } from '@/lib/n8n'
 import type { Product } from '@/types/product'
 
 export async function GET() {
@@ -45,16 +46,23 @@ export async function POST(request: Request) {
       )
     }
 
-    // Add product to database
-    const newProduct = await addProduct({
+    // Save product via n8n webhook (centralized save logic)
+    const result = await saveProductToDatabase({
       ...productData,
-      dateAdded: new Date().toISOString(),
+      extractedAt: new Date().toISOString(),
     })
+
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error || 'Failed to save product' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({
       success: true,
       message: 'Product added successfully',
-      data: newProduct,
+      data: result.data,
     })
   } catch (error) {
     console.error('POST /api/products error:', error)

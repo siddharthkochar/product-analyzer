@@ -16,11 +16,11 @@ type UploadState = 'idle' | 'preview' | 'analyzing' | 'success' | 'error'
 interface UploadData {
   image: File | null
   preview: string | null
-  result: Partial<Product> | null
+  result: (Partial<Product> & { nutrition?: any }) | null
   error: string | null
 }
 
-const ANALYSIS_TIMEOUT = 30000 // 30 seconds
+const ANALYSIS_TIMEOUT = 60000 // 60 seconds (1 minute)
 
 export default function UploadPage() {
   const router = useRouter()
@@ -128,20 +128,32 @@ export default function UploadPage() {
         )
       }
 
-      // Parse response data
-      const productData: Partial<Product> = {
-        productName: response.data.productName || response.data.product_name || '',
-        brand: response.data.brand || 'Unknown',
-        category: response.data.category || 'Uncategorized',
-        subCategory: response.data.subCategory || response.data.sub_category || 'Other',
-        expiryDate: response.data.expiryDate || response.data.expiry_date || '',
-        mrp: response.data.mrp || response.data.price || '',
-        weight: response.data.weight || response.data.net_weight || '',
-        quantity: response.data.quantity || 1,
-        ingredients: response.data.ingredients || '',
-        healthScore: response.data.healthScore || response.data.health_score || 0,
-        healthRating: response.data.healthRating || response.data.health_rating || '',
-        concerns: response.data.concerns || '',
+      // Handle array response from n8n (extract first item)
+      const rawData = Array.isArray(response.data) ? response.data[0] : response.data
+
+      // Parse response data including nutrition object
+      // Note: We store nutrition as JSON string in nutritionalInfo for Product type,
+      // but we'll also preserve the raw nutrition object for saving to n8n
+      const nutritionData = rawData.nutrition || null
+
+      const productData: Partial<Product> & { nutrition?: any } = {
+        productName: rawData.productName || rawData.product_name || '',
+        brand: rawData.brand || 'Unknown',
+        category: rawData.category || 'Uncategorized',
+        subCategory: rawData.subCategory || rawData.sub_category || 'Other',
+        expiryDate: rawData.expiryDate || rawData.expiry_date || '',
+        mrp: rawData.mrp || rawData.price || '',
+        weight: rawData.weight || rawData.net_weight || '',
+        quantity: rawData.quantity || 1,
+        ingredients: rawData.ingredients || '',
+        nutritionalInfo: nutritionData ? JSON.stringify(nutritionData) : '',
+        healthScore: rawData.healthScore || rawData.health_score || 0,
+        healthRating: rawData.healthRating || rawData.health_rating || '',
+        concerns: Array.isArray(rawData.concerns)
+          ? rawData.concerns.join('\n')
+          : (rawData.concerns || ''),
+        // Preserve nutrition object for n8n workflow
+        nutrition: nutritionData,
       }
 
       // Validate that we got some useful data
@@ -172,7 +184,7 @@ export default function UploadPage() {
 
       if (error instanceof Error) {
         if (error.message === 'TIMEOUT') {
-          errorMessage = 'Analysis is taking longer than expected. Please try again.'
+          errorMessage = 'Analysis timed out after 60 seconds. The image may be too complex or the service is overloaded. Please try again.'
         } else if (error.message.includes('fetch')) {
           errorMessage =
             'Could not connect to analysis service. Please check your internet connection.'
@@ -209,18 +221,19 @@ export default function UploadPage() {
   }, [handleRetake])
 
   // Handle save to inventory (STATE 4a -> navigate or STATE 1)
-  const handleSave = useCallback(async () => {
-    if (!data.result) return
-
+  const handleSave = useCallback(async (editedProduct: Partial<Product> & { nutrition?: any }) => {
     setIsSaving(true)
 
     try {
-      const response = await fetch('/api/products', {
+      // Ensure nutrition data is included in the save request for n8n workflow
+      console.log('[SAVE] Sending product data with nutrition:', editedProduct)
+
+      const response = await fetch('/api/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data.result),
+        body: JSON.stringify(editedProduct),
       })
 
       const result = await response.json()
@@ -258,7 +271,7 @@ export default function UploadPage() {
     } finally {
       setIsSaving(false)
     }
-  }, [data.result, router, toast])
+  }, [router, toast])
 
   // Handle try another product (STATE 4a -> STATE 1)
   const handleTryAnother = useCallback(() => {
