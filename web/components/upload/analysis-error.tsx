@@ -28,25 +28,23 @@ export function AnalysisError({ error, onRetry, onUseNewImage }: AnalysisErrorPr
         </div>
       </Card>
 
-      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+      <div className="flex flex-col sm:flex-row gap-4 justify-center">
         <Button
           onClick={onUseNewImage}
           variant="outline"
-          size="lg"
-          className="flex-1 sm:flex-initial"
+          className="h-14 sm:h-12 w-full sm:w-auto text-base sm:text-sm"
           aria-label="Upload a different image"
         >
-          <Upload className="mr-2 h-5 w-5" />
+          <Upload className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
           Use Different Image
         </Button>
 
         <Button
           onClick={onRetry}
-          size="lg"
-          className="flex-1 sm:flex-initial min-w-[200px]"
+          className="h-14 sm:h-12 w-full sm:w-auto sm:min-w-[200px] text-base sm:text-sm"
           aria-label="Try analyzing again"
         >
-          <RotateCcw className="mr-2 h-5 w-5" />
+          <RotateCcw className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
           Try Again
         </Button>
       </div>

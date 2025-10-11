@@ -1,5 +1,19 @@
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL!
-const N8N_SAVE_WEBHOOK_URL = process.env.N8N_SAVE_WEBHOOK_URL!
+// Environment variable validation
+function validateEnvVar(name: string, value: string | undefined): string {
+  if (!value || value.trim() === '') {
+    const errorMsg = `[N8N] CRITICAL: Environment variable ${name} is not defined. Please check your .env.local file.`
+    console.error(errorMsg)
+    throw new Error(`Missing required environment variable: ${name}`)
+  }
+  return value
+}
+
+const N8N_WEBHOOK_URL = validateEnvVar('N8N_WEBHOOK_URL', process.env.N8N_WEBHOOK_URL)
+const N8N_SAVE_WEBHOOK_URL = validateEnvVar('N8N_SAVE_WEBHOOK_URL', process.env.N8N_SAVE_WEBHOOK_URL)
+
+console.log('[N8N] Configuration loaded successfully')
+console.log('[N8N] Analyze webhook:', N8N_WEBHOOK_URL.substring(0, 30) + '...')
+console.log('[N8N] Save webhook:', N8N_SAVE_WEBHOOK_URL.substring(0, 30) + '...')
 
 export interface N8nAnalyzeResponse {
   success: boolean
@@ -71,48 +85,159 @@ export async function analyzeProductImage(imageFile: File | Blob): Promise<N8nAn
   }
 }
 
+// Helper function to implement retry logic with exponential backoff
+async function retryWithBackoff<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelayMs: number = 1000,
+  shouldRetry: (error: Error) => boolean = () => true
+): Promise<T> {
+  let lastError: Error
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = initialDelayMs * Math.pow(2, attempt - 1)
+        console.log(`[N8N] Retry attempt ${attempt}/${maxRetries} after ${delay}ms delay...`)
+        await new Promise(resolve => setTimeout(resolve, delay))
+      }
+
+      return await operation()
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+
+      // Check if we should retry
+      const isLastAttempt = attempt === maxRetries
+      const canRetry = shouldRetry(lastError)
+
+      if (isLastAttempt || !canRetry) {
+        console.error(`[N8N] All retry attempts exhausted or error not retryable`)
+        throw lastError
+      }
+
+      console.warn(`[N8N] Attempt ${attempt + 1} failed:`, lastError.message)
+    }
+  }
+
+  throw lastError!
+}
+
 export async function saveProductToDatabase(productData: any): Promise<N8nSaveResponse> {
+  const startTime = Date.now()
+  const requestId = Math.random().toString(36).substring(7)
+
+  console.log(`[N8N SAVE] ===== Request ${requestId} started at ${new Date().toISOString()} =====`)
+  console.log(`[N8N SAVE] Target webhook: ${N8N_SAVE_WEBHOOK_URL}`)
+  console.log(`[N8N SAVE] Product data payload:`, JSON.stringify(productData, null, 2))
+  console.log(`[N8N SAVE] Has nutrition field:`, productData.nutrition ? 'YES' : 'NO')
+
+  if (productData.nutrition) {
+    console.log(`[N8N SAVE] Nutrition data:`, JSON.stringify(productData.nutrition, null, 2))
+  }
+
   try {
-    console.log('[N8N] Calling save webhook:', N8N_SAVE_WEBHOOK_URL)
-    console.log('[N8N] Product data:', productData)
+    const result = await retryWithBackoff(
+      async () => {
+        console.log(`[N8N SAVE] Sending POST request to webhook...`)
 
-    // Call n8n save webhook with product data
-    const response = await fetch(N8N_SAVE_WEBHOOK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+        // Create abort controller for timeout
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+
+        try {
+          const response = await fetch(N8N_SAVE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(productData),
+            signal: controller.signal,
+          })
+
+          clearTimeout(timeoutId)
+
+          console.log(`[N8N SAVE] Response received - Status: ${response.status} ${response.statusText}`)
+          console.log(`[N8N SAVE] Response headers:`, JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2))
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            console.error(`[N8N SAVE] Error response body:`, errorText)
+
+            // Create detailed error based on status code
+            const error = new Error(
+              `n8n save webhook failed with status ${response.status}: ${response.statusText}. Response: ${errorText}`
+            )
+
+            // Add status code to error for retry logic
+            ;(error as any).statusCode = response.status
+            throw error
+          }
+
+          const responseText = await response.text()
+          console.log(`[N8N SAVE] Response body (first 500 chars):`, responseText.substring(0, 500))
+
+          if (!responseText || responseText.trim() === '') {
+            console.error(`[N8N SAVE] Empty response from save webhook`)
+            throw new Error('n8n save webhook returned empty response. The workflow may not be configured correctly.')
+          }
+
+          const data = JSON.parse(responseText)
+          console.log(`[N8N SAVE] Parsed response data:`, JSON.stringify(data, null, 2))
+
+          return data
+        } catch (fetchError) {
+          clearTimeout(timeoutId)
+
+          if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+            console.error(`[N8N SAVE] Request timed out after 30 seconds`)
+            const timeoutError = new Error('Request timed out after 30 seconds. The webhook may be slow or unresponsive.')
+            ;(timeoutError as any).statusCode = 408 // Request Timeout
+            throw timeoutError
+          }
+
+          throw fetchError
+        }
       },
-      body: JSON.stringify(productData),
-    })
+      3, // maxRetries
+      1000, // initialDelayMs
+      (error: Error) => {
+        // Only retry on network errors or 5xx server errors, not 4xx client errors
+        const statusCode = (error as any).statusCode
 
-    console.log('[N8N] Save response status:', response.status)
+        if (!statusCode) {
+          // Network error or timeout - retry
+          console.log(`[N8N SAVE] Network error or timeout - will retry:`, error.message)
+          return true
+        }
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('[N8N] Save error response:', errorText)
-      throw new Error(`n8n save webhook failed with status ${response.status}: ${response.statusText}`)
-    }
+        if (statusCode >= 500 && statusCode < 600) {
+          // 5xx server error - retry
+          console.log(`[N8N SAVE] Server error (${statusCode}) - will retry`)
+          return true
+        }
 
-    const responseText = await response.text()
-    console.log('[N8N] Save response text:', responseText.substring(0, 200))
+        // 4xx client error - don't retry
+        console.log(`[N8N SAVE] Client error (${statusCode}) - will NOT retry`)
+        return false
+      }
+    )
 
-    if (!responseText || responseText.trim() === '') {
-      console.error('[N8N] Empty response from save webhook')
-      throw new Error('n8n save webhook returned empty response.')
-    }
-
-    const data = JSON.parse(responseText)
-    console.log('[N8N] Parsed save response:', data)
+    const duration = Date.now() - startTime
+    console.log(`[N8N SAVE] ===== Request ${requestId} succeeded in ${duration}ms =====`)
 
     return {
       success: true,
-      data,
+      data: result,
     }
   } catch (error) {
-    console.error('[N8N] Error calling n8n save webhook:', error)
+    const duration = Date.now() - startTime
+    console.error(`[N8N SAVE] ===== Request ${requestId} FAILED after ${duration}ms =====`)
+    console.error(`[N8N SAVE] Final error:`, error)
+    console.error(`[N8N SAVE] Error stack:`, error instanceof Error ? error.stack : 'N/A')
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: error instanceof Error ? error.message : 'Unknown error occurred while saving product',
     }
   }
 }

@@ -13,6 +13,7 @@ import {
 import { Product } from '@/types/product'
 import { HealthBadge } from '@/components/health-badge'
 import { ExpiryBadge } from '@/components/expiry-badge'
+import { ProductCard } from '@/components/product-card'
 import {
   Table,
   TableBody,
@@ -161,32 +162,6 @@ export function ProductTable({ products, onEdit, onDelete, onMarkConsumed }: Pro
       },
     },
     {
-      accessorKey: 'dateAdded',
-      header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-          >
-            Added
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        )
-      },
-      cell: ({ row }) => {
-        const date = new Date(row.original.dateAdded)
-        return (
-          <div className="text-sm">
-            {date.toLocaleDateString('en-IN', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            })}
-          </div>
-        )
-      },
-    },
-    {
       id: 'actions',
       cell: ({ row }) => {
         const product = row.original
@@ -244,7 +219,27 @@ export function ProductTable({ products, onEdit, onDelete, onMarkConsumed }: Pro
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border">
+      {/* Mobile Card View (< 768px) */}
+      <div className="block md:hidden">
+        <div className="space-y-4">
+          {table.getRowModel().rows?.length ? (
+            table.getRowModel().rows.map((row) => (
+              <ProductCard
+                key={row.id}
+                product={row.original}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onMarkConsumed={onMarkConsumed}
+              />
+            ))
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">No products found.</div>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Table View (>= 768px) */}
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -284,8 +279,8 @@ export function ProductTable({ products, onEdit, onDelete, onMarkConsumed }: Pro
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-2">
-        <div className="text-sm text-muted-foreground">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
+        <div className="text-sm text-muted-foreground text-center sm:text-left">
           Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}{' '}
           to{' '}
           {Math.min(
@@ -302,7 +297,7 @@ export function ProductTable({ products, onEdit, onDelete, onMarkConsumed }: Pro
             disabled={!table.getCanPreviousPage()}
           >
             <ChevronLeft className="h-4 w-4" />
-            Previous
+            <span className="hidden sm:inline ml-1">Previous</span>
           </Button>
           <div className="text-sm">
             Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
@@ -313,7 +308,7 @@ export function ProductTable({ products, onEdit, onDelete, onMarkConsumed }: Pro
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
           >
-            Next
+            <span className="hidden sm:inline mr-1">Next</span>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

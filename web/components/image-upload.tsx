@@ -131,7 +131,7 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
               </div>
 
               {hasCamera ? (
-                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-md">
+                <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
                   <input
                     ref={cameraInputRef}
                     type="file"
@@ -145,36 +145,34 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
                   <Button
                     type="button"
                     variant="default"
-                    size="lg"
                     disabled={disabled}
                     onClick={(e) => {
                       e.stopPropagation()
                       cameraInputRef.current?.click()
                     }}
-                    className="flex-1"
+                    className="h-14 sm:h-12 w-full sm:flex-1 text-base sm:text-sm"
                     aria-label="Take photo with camera"
                   >
-                    <Camera className="mr-2 h-5 w-5" />
+                    <Camera className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
                     Take Photo
                   </Button>
                   <Button
                     type="button"
                     variant="secondary"
-                    size="lg"
                     disabled={disabled}
                     onClick={(e) => {
                       e.stopPropagation()
                       handleBrowseClick()
                     }}
-                    className="flex-1"
+                    className="h-14 sm:h-12 w-full sm:flex-1 text-base sm:text-sm"
                     aria-label="Browse files"
                   >
-                    <Upload className="mr-2 h-5 w-5" />
+                    <Upload className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
                     Browse Files
                   </Button>
                 </div>
               ) : (
-                <Button type="button" variant="secondary" disabled={disabled} size="lg">
+                <Button type="button" variant="secondary" disabled={disabled} className="h-14 sm:h-12 text-base sm:text-sm">
                   Select Image
                 </Button>
               )}

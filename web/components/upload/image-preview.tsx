@@ -30,27 +30,25 @@ export function ImagePreview({
         </div>
       </Card>
 
-      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+      <div className="flex flex-col sm:flex-row gap-4 justify-center">
         <Button
           onClick={onRetake}
           variant="outline"
-          size="lg"
           disabled={isAnalyzing}
-          className="flex-1 sm:flex-initial"
+          className="h-14 sm:h-12 w-full sm:w-auto text-base sm:text-sm"
           aria-label="Retake or change photo"
         >
-          <RotateCcw className="mr-2 h-5 w-5" />
+          <RotateCcw className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
           Retake Photo
         </Button>
 
         <Button
           onClick={onAnalyze}
-          size="lg"
           disabled={isAnalyzing}
-          className="flex-1 sm:flex-initial min-w-[200px]"
+          className="h-14 sm:h-12 w-full sm:w-auto sm:min-w-[200px] text-base sm:text-sm"
           aria-label="Analyze product image"
         >
-          <Camera className="mr-2 h-5 w-5" />
+          <Camera className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
           Analyze Product
         </Button>
       </div>

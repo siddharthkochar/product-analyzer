@@ -213,35 +213,33 @@ export function ProductResults({
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+          <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <Button
               type="button"
               onClick={onTryAnother}
               variant="outline"
-              size="lg"
               disabled={isSaving}
-              className="flex-1 sm:flex-initial"
+              className="h-14 sm:h-12 w-full sm:w-auto text-base sm:text-sm"
               aria-label="Analyze another product"
             >
-              <RefreshCw className="mr-2 h-5 w-5" />
+              <RefreshCw className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
               Try Another Product
             </Button>
 
             <Button
               type="submit"
-              size="lg"
               disabled={isSaving}
-              className="flex-1 sm:flex-initial min-w-[200px]"
+              className="h-14 sm:h-12 w-full sm:w-auto sm:min-w-[200px] text-base sm:text-sm"
               aria-label="Save product to inventory"
             >
               {isSaving ? (
                 <>
-                  <RefreshCw className="mr-2 h-5 w-5 animate-spin" />
+                  <RefreshCw className="mr-2 h-6 w-6 sm:h-5 sm:w-5 animate-spin" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Save className="mr-2 h-5 w-5" />
+                  <Save className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
                   Save to Inventory
                 </>
               )}
