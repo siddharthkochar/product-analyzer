@@ -75,6 +75,7 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             N8N_WEBHOOK_URL=${{ vars.N8N_WEBHOOK_URL }}
+            N8N_SAVE_WEBHOOK_URL=${{ vars.N8N_SAVE_WEBHOOK_URL }}
             NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
 
       - name: Image digest

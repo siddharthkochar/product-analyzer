@@ -220,27 +220,27 @@ export function ProductResults({
               variant="outline"
               disabled={isSaving}
               className="h-14 sm:h-12 w-full sm:w-auto text-base sm:text-sm"
-              aria-label="Analyze another product"
+              aria-label="Scan another product"
             >
               <RefreshCw className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
-              Try Another Product
+              Scan Another
             </Button>
 
             <Button
               type="submit"
               disabled={isSaving}
               className="h-14 sm:h-12 w-full sm:w-auto sm:min-w-[200px] text-base sm:text-sm"
-              aria-label="Save product to inventory"
+              aria-label="Add product to inventory"
             >
               {isSaving ? (
                 <>
                   <RefreshCw className="mr-2 h-6 w-6 sm:h-5 sm:w-5 animate-spin" />
-                  Saving...
+                  Adding...
                 </>
               ) : (
                 <>
                   <Save className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
-                  Save to Inventory
+                  Add to Inventory
                 </>
               )}
             </Button>

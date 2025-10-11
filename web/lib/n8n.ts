@@ -8,12 +8,27 @@ function validateEnvVar(name: string, value: string | undefined): string {
   return value
 }
 
-const N8N_WEBHOOK_URL = validateEnvVar('N8N_WEBHOOK_URL', process.env.N8N_WEBHOOK_URL)
-const N8N_SAVE_WEBHOOK_URL = validateEnvVar('N8N_SAVE_WEBHOOK_URL', process.env.N8N_SAVE_WEBHOOK_URL)
+// Skip validation during build phase - environment variables are only needed at runtime
+// This prevents build failures when env vars are only available in production environment
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' || process.env.NODE_ENV === 'production' && !process.env.N8N_WEBHOOK_URL
 
-console.log('[N8N] Configuration loaded successfully')
-console.log('[N8N] Analyze webhook:', N8N_WEBHOOK_URL.substring(0, 30) + '...')
-console.log('[N8N] Save webhook:', N8N_SAVE_WEBHOOK_URL.substring(0, 30) + '...')
+let N8N_WEBHOOK_URL: string
+let N8N_SAVE_WEBHOOK_URL: string
+
+if (isBuildTime) {
+  // Use placeholder values during build - they will be replaced at runtime
+  console.log('[N8N] Build time detected - skipping environment validation')
+  N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'BUILD_TIME_PLACEHOLDER'
+  N8N_SAVE_WEBHOOK_URL = process.env.N8N_SAVE_WEBHOOK_URL || 'BUILD_TIME_PLACEHOLDER'
+} else {
+  // Runtime validation - ensure env vars are available
+  N8N_WEBHOOK_URL = validateEnvVar('N8N_WEBHOOK_URL', process.env.N8N_WEBHOOK_URL)
+  N8N_SAVE_WEBHOOK_URL = validateEnvVar('N8N_SAVE_WEBHOOK_URL', process.env.N8N_SAVE_WEBHOOK_URL)
+
+  console.log('[N8N] Configuration loaded successfully')
+  console.log('[N8N] Analyze webhook:', N8N_WEBHOOK_URL.substring(0, 30) + '...')
+  console.log('[N8N] Save webhook:', N8N_SAVE_WEBHOOK_URL.substring(0, 30) + '...')
+}
 
 export interface N8nAnalyzeResponse {
   success: boolean

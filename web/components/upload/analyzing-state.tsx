@@ -1,13 +1,15 @@
 'use client'
 
 import { Card } from '@/components/ui/card'
-import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Loader2, RotateCcw } from 'lucide-react'
 
 interface AnalyzingStateProps {
   preview: string
+  onCancel?: () => void
 }
 
-export function AnalyzingState({ preview }: AnalyzingStateProps) {
+export function AnalyzingState({ preview, onCancel }: AnalyzingStateProps) {
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
       <Card className="overflow-hidden relative">
@@ -33,10 +35,22 @@ export function AnalyzingState({ preview }: AnalyzingStateProps) {
         </div>
       </Card>
 
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-4">
         <p className="text-sm text-muted-foreground">
           This may take a few moments. Please wait...
         </p>
+        {onCancel && (
+          <Button
+            onClick={onCancel}
+            variant="outline"
+            size="sm"
+            className="text-sm"
+            aria-label="Cancel analysis and change image"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Change Image
+          </Button>
+        )}
       </div>
     </div>
   )

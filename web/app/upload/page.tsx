@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ImageUpload } from '@/components/image-upload'
 import { ImagePreview } from '@/components/upload/image-preview'
@@ -34,18 +34,34 @@ export default function UploadPage() {
     error: null,
   })
   const [isSaving, setIsSaving] = useState(false)
+  const autoAnalysisTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Cleanup preview URL on unmount
+  // Cleanup preview URL and timer on unmount
   useEffect(() => {
     return () => {
       if (data.preview) {
         URL.revokeObjectURL(data.preview)
       }
+      if (autoAnalysisTimerRef.current) {
+        clearTimeout(autoAnalysisTimerRef.current)
+      }
     }
   }, [data.preview])
 
-  // Handle image selection (STATE 1 -> STATE 2)
+  // Auto-trigger analysis when state changes to 'analyzing' (from auto-analysis timer)
+  useEffect(() => {
+    if (state === 'analyzing' && data.image && data.preview) {
+      handleAnalyze()
+    }
+  }, [state])
+
+  // Handle image selection (STATE 1 -> STATE 2 -> Auto-trigger STATE 3)
   const handleImageSelect = useCallback((file: File) => {
+    // Clear any existing timer
+    if (autoAnalysisTimerRef.current) {
+      clearTimeout(autoAnalysisTimerRef.current)
+    }
+
     // Create preview URL
     const previewUrl = URL.createObjectURL(file)
 
@@ -62,16 +78,31 @@ export default function UploadPage() {
       const announcement = document.createElement('div')
       announcement.setAttribute('role', 'status')
       announcement.setAttribute('aria-live', 'polite')
-      announcement.textContent = 'Image selected. Ready to analyze product.'
+      announcement.textContent = 'Image selected. Starting analysis...'
       announcement.style.position = 'absolute'
       announcement.style.left = '-10000px'
       document.body.appendChild(announcement)
       setTimeout(() => document.body.removeChild(announcement), 1000)
     }, 100)
+
+    // Auto-trigger analysis after 800ms delay (brief preview flash)
+    // Store timeout reference so it can be cancelled if user changes image
+    autoAnalysisTimerRef.current = setTimeout(() => {
+      // Trigger analysis by setting state directly to 'analyzing'
+      // The analysis will start in the next useEffect
+      setState('analyzing')
+      setData((prev) => ({ ...prev, image: file, preview: previewUrl }))
+    }, 800)
   }, [])
 
-  // Handle retake/change image (STATE 2 -> STATE 1)
+  // Handle retake/change image (STATE 2 or STATE 3 -> STATE 1)
   const handleRetake = useCallback(() => {
+    // Cancel auto-analysis timer if user changes image during preview
+    if (autoAnalysisTimerRef.current) {
+      clearTimeout(autoAnalysisTimerRef.current)
+      autoAnalysisTimerRef.current = null
+    }
+
     if (data.preview) {
       URL.revokeObjectURL(data.preview)
     }
@@ -313,7 +344,7 @@ export default function UploadPage() {
         )}
 
         {state === 'analyzing' && data.preview && (
-          <AnalyzingState preview={data.preview} />
+          <AnalyzingState preview={data.preview} onCancel={handleRetake} />
         )}
 
         {state === 'success' && data.result && (

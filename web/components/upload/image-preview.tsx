@@ -36,10 +36,10 @@ export function ImagePreview({
           variant="outline"
           disabled={isAnalyzing}
           className="h-14 sm:h-12 w-full sm:w-auto text-base sm:text-sm"
-          aria-label="Retake or change photo"
+          aria-label="Change image"
         >
           <RotateCcw className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
-          Retake Photo
+          Change Image
         </Button>
 
         <Button

@@ -3,10 +3,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Product } from '@/types/product'
 import { ProductTable } from '@/components/product-table'
+import { SearchFilter } from '@/components/search-filter'
 import { Button } from '@/components/ui/button'
 import { Plus, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { EditProductDialog } from '@/components/edit-product-dialog'
 import { DeleteConfirmDialog } from '@/components/delete-confirm-dialog'
 import { ConsumeProductDialog } from '@/components/consume-product-dialog'
@@ -18,6 +19,12 @@ export default function Home() {
   const [consumingProduct, setConsumingProduct] = useState<Product | null>(null)
   const { toast } = useToast()
   const queryClient = useQueryClient()
+
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [healthFilter, setHealthFilter] = useState('all')
+  const [expiryFilter, setExpiryFilter] = useState('all')
 
   // Fetch products
   const { data: products = [], isLoading, error } = useQuery({
@@ -31,6 +38,57 @@ export default function Home() {
       return result.data as Product[]
     },
   })
+
+  // Helper function to get expiry status from days to expire
+  const getExpiryStatus = (daysToExpire: number): string => {
+    if (daysToExpire < 0) return 'expired'
+    if (daysToExpire <= 7) return 'expiring-soon'
+    if (daysToExpire <= 30) return 'expiring-month'
+    return 'fresh'
+  }
+
+  // Extract unique categories from products
+  const categories = useMemo(() => {
+    const unique = new Set(products.map((p) => p.category))
+    return Array.from(unique).sort()
+  }, [products])
+
+  // Filter products based on search and filter criteria
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      // Search: name, brand, ingredients, category
+      const searchLower = searchQuery.toLowerCase()
+      const matchesSearch =
+        !searchQuery ||
+        product.productName.toLowerCase().includes(searchLower) ||
+        product.brand.toLowerCase().includes(searchLower) ||
+        product.ingredients?.toLowerCase().includes(searchLower) ||
+        product.category.toLowerCase().includes(searchLower)
+
+      // Category filter
+      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter
+
+      // Health rating filter
+      const matchesHealth = healthFilter === 'all' || product.healthRating === healthFilter
+
+      // Expiry status filter
+      const expiryStatus = getExpiryStatus(product.daysToExpire)
+      const matchesExpiry = expiryFilter === 'all' || expiryStatus === expiryFilter
+
+      return matchesSearch && matchesCategory && matchesHealth && matchesExpiry
+    })
+  }, [products, searchQuery, categoryFilter, healthFilter, expiryFilter])
+
+  // Clear all filters
+  const handleClearFilters = () => {
+    setSearchQuery('')
+    setCategoryFilter('all')
+    setHealthFilter('all')
+    setExpiryFilter('all')
+  }
+
+  // Check if any filters are active
+  const hasActiveFilters = searchQuery || categoryFilter !== 'all' || healthFilter !== 'all' || expiryFilter !== 'all'
 
   // Update product mutation
   const updateMutation = useMutation({
@@ -155,7 +213,7 @@ export default function Home() {
         <Link href="/upload">
           <Button>
             <Plus className="mr-2 h-4 w-4" />
-            Add Product
+            Scan Product
           </Button>
         </Link>
       </div>
@@ -166,17 +224,50 @@ export default function Home() {
           <Link href="/upload">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Add Your First Product
+              Scan Your First Product
             </Button>
           </Link>
         </div>
       ) : (
-        <ProductTable
-          products={products}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onMarkConsumed={handleMarkConsumed}
-        />
+        <div className="space-y-6">
+          {/* Search and Filter */}
+          <SearchFilter
+            search={searchQuery}
+            onSearchChange={setSearchQuery}
+            category={categoryFilter}
+            onCategoryChange={setCategoryFilter}
+            healthRating={healthFilter}
+            onHealthRatingChange={setHealthFilter}
+            expiryStatus={expiryFilter}
+            onExpiryStatusChange={setExpiryFilter}
+            onClearFilters={handleClearFilters}
+            categories={categories}
+          />
+
+          {/* Results Count */}
+          {hasActiveFilters && (
+            <div className="text-sm text-muted-foreground">
+              Showing {filteredProducts.length} of {products.length} products
+            </div>
+          )}
+
+          {/* Products Table or Empty State */}
+          {filteredProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center min-h-[300px] gap-4 border-2 border-dashed rounded-lg p-8">
+              <p className="text-muted-foreground text-lg">No products match your filters</p>
+              <Button onClick={handleClearFilters} variant="outline">
+                Clear Filters
+              </Button>
+            </div>
+          ) : (
+            <ProductTable
+              products={filteredProducts}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onMarkConsumed={handleMarkConsumed}
+            />
+          )}
+        </div>
       )}
 
       {/* Dialogs */}

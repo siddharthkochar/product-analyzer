@@ -158,17 +158,17 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
                   </Button>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="default"
                     disabled={disabled}
                     onClick={(e) => {
                       e.stopPropagation()
                       handleBrowseClick()
                     }}
                     className="h-14 sm:h-12 w-full sm:flex-1 text-base sm:text-sm"
-                    aria-label="Browse files"
+                    aria-label="Upload photo"
                   >
                     <Upload className="mr-2 h-6 w-6 sm:h-5 sm:w-5" />
-                    Browse Files
+                    Upload Photo
                   </Button>
                 </div>
               ) : (
