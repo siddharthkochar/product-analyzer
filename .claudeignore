@@ -1,0 +1,97 @@
+# Claude Code Ignore File
+# Files and directories listed here will be excluded from Claude's context
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Test images (large files)
+test-images/
+
+# Environment files (sensitive)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Testing
+coverage/
+.nyc_output/
+*.spec.ts
+*.test.ts
+__tests__/
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+
+# Misc
+*.bak
+*.tmp
+*.temp
+.temp/
+
+# Old/archived files
+DEPLOYMENT_GUIDE.md
+workflow/workflow.json
+workflow/workflow-updated.json
+workflow/workflow-multi-image.json
+workflow/extracted.json
+workflow/WORKFLOW_VALIDATION.md
+workflow/MULTIPART_UPLOAD_GUIDE.md
+web/test-save.js
+web/test-validation.js
+
+# Legacy deployment files (moved to deployment/)
+web/Dockerfile
+web/docker-compose.yml
+web/docker-compose.prod.yml
+web/.dockerignore
+
+# Large documentation (use summaries instead)
+MULTI_IMAGE_IMPLEMENTATION_SUMMARY.md
+plan.md
+
+# Redundant documentation
+README.md
