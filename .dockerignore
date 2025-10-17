@@ -1,0 +1,53 @@
+# Dependencies
+web/node_modules
+**/node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+web/.next
+web/out
+web/dist
+web/build
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+web/.env
+web/.env.local
+
+# Testing
+coverage
+.nyc_output
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker (exclude deployment folder files)
+deployment/
+!deployment/Dockerfile
+
+# Documentation
+README.md
+*.md
+docs/
+workflow/
+
+# Misc
+.editorconfig
+.prettierrc
+.eslintrc*
+tsconfig.tsbuildinfo
+test-images/
