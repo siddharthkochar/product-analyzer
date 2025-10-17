@@ -2,354 +2,177 @@
 
 ## Overview
 
-This system uses **two n8n workflows** to analyze product packaging images and extract comprehensive product information including ingredients, nutrition, expiry dates, and health ratings.
+Three n8n workflows handle product image analysis and database operations:
 
-- **Single-Image Workflow**: Analyzes one product image at a time
-- **Multi-Image Workflow**: Processes 1-5 images of the same product and intelligently merges results for improved accuracy
+1. **Single-Image Analysis**: Analyzes one image, returns results (no DB save)
+2. **Multi-Image Analysis**: Processes 1-5 images, merges results intelligently (no DB save)
+3. **Save Analysis**: Saves reviewed/edited product data to Supabase
 
-## Architecture
-
-### System Components
-```
-Web Frontend (Next.js)
-    ↓
-API Endpoint (/api/analyze or /api/analyze-multiple)
-    ↓
-n8n Webhook
-    ↓
-Gemini Vision API (Google AI)
-    ↓
-Data Processing Pipeline
-    ↓
-Supabase Database
-    ↓
-Response to Frontend
-```
+**Important**: Analysis workflows do NOT save to database automatically. User reviews/edits data in web app, then saves via separate endpoint.
 
 ---
 
 ## Workflow 1: Single-Image Analysis
 
 **Webhook**: `POST https://n8n.kochar.dev/webhook/product-analyzer`
+**ID**: `q3zvwWYkI6EKFMzi`
 
-### Node Flow
+### Flow
 ```
-1. Webhook Trigger
-   ↓
-2. Gemini Vision API
-   ↓
-3. Parse & Transform Data
-   ↓
-4. Calculate Days to Expire
-   ↓
-5. Analyze Health Rating
-   ↓
-6. Prepare for Database
-   ↓
-7. Store in Supabase
-   ↓
-8. Check Expiry Alert
-   ↓
-9. Webhook Response
+Webhook → Gemini Vision API → Parse & Transform → Calculate Expiry → Analyze Health → Response
 ```
 
-### Node Descriptions
+### Nodes
 
-#### 1. Webhook Trigger
-- **Type**: n8n-nodes-base.webhook
-- **Path**: `/product-analyzer`
-- **Method**: POST
-- **Input**: Binary image data (FormData field: `image`)
-- **Response Mode**: responseNode
+**1. Webhook - Receive Images**
+- Path: `/product-analyzer`
+- Method: POST
+- Input: FormData with `image` field
 
-#### 2. Gemini Vision API
-- **Type**: @n8n/n8n-nodes-langchain.googleGemini
-- **Model**: `models/gemini-2.5-flash`
-- **Operation**: Image analysis
-- **Prompt**: Extracts product name, brand, category, sub-category, expiry date, MRP, weight, ingredients, and nutrition facts
-- **Output Format**: JSON structure with product data
+**2. Gemini Vision API**
+- Model: `gemini-2.5-flash`
+- Extracts: Product name, brand, category, subcategory, expiry, MRP, weight, ingredients, nutrition
+- Output: JSON response
 
-#### 3. Parse & Transform Data
-- **Type**: Code node (JavaScript)
-- **Purpose**: Extract and validate Gemini response
-- **Functions**:
-  - Removes markdown formatting (```json blocks)
-  - Parses JSON response
-  - Validates required fields (productName, expiryDate)
-  - Normalizes nutrition object structure
-  - Adds metadata (extractedAt timestamp, quantity=1)
-- **Error Handling**: Returns error object if parsing fails
+**3. Parse & Transform Data**
+- Cleans markdown formatting (`\`\`\`json`)
+- Validates required fields (productName, expiryDate)
+- Normalizes nutrition object
+- Error handling with fallback
 
-#### 4. Calculate Days to Expire
-- **Type**: Code node (JavaScript)
-- **Purpose**: Human-readable expiry calculation
-- **Outputs**:
-  - `daysToExpire`: Human-readable string
-  - `expiryStatus`: Critical/Warning/Good/Expired
-  - `daysToExpireRaw`: Integer days remaining
-- **Format Examples**:
-  - "Expires today", "Expires tomorrow"
-  - "5 days", "1 week 3 days"
-  - "2 months 1 week"
-  - "Expired 10 days ago"
+**4. Calculate Days to Expire**
+- Formats: "Expires today", "5 days", "2 months 1 week", "Expired X days ago"
+- Status: Critical/Warning/Good/Expired
 
-#### 5. Analyze Health Rating
-- **Type**: Code node (JavaScript)
-- **Purpose**: Calculate health score (0-99.9) based on ingredients and nutrition
-- **Scoring Algorithm**:
-  - **Base Score**: 100
-  - **Penalties**:
-    - Trans fats: -40
-    - High fructose corn syrup: -25
-    - Artificial sweeteners: -20
-    - Sodium nitrite: -20
-    - Artificial colors: -15
-    - MSG: -15
-    - High sugar (>15g/100g): -15
-    - High sodium (>500mg/100g): -15
-    - High saturated fat (>5g/100g): -15
-    - Palm oil: -10
-    - Multiple preservatives: -10
-  - **Bonuses**:
-    - High fiber (≥5g/100g): +5
-    - High protein (≥10g/100g): +5
-  - **Final Score**: Clamped to 0-99.9 range
-- **Health Ratings**:
-  - 80-100: "Healthy"
-  - 60-79: "Moderate"
-  - 40-59: "Not Healthy"
-  - 0-39: "Harmful"
-- **Outputs**:
-  - `healthRating`: Category string
-  - `healthScore`: Numeric score (0-99.9)
-  - `concerns`: Array of health concern descriptions
+**5. Analyze Health Rating**
+- Score: 0-99.9 (base 100)
+- Penalties: Trans fats (-40), HFCS (-25), artificial sweeteners (-20), high sugar/sodium/fat (-15 each)
+- Bonuses: High fiber (+5), high protein (+5)
+- Ratings: Healthy (80-100), Moderate (60-79), Not Healthy (40-59), Harmful (0-39)
 
-#### 6. Prepare for Database
-- **Type**: Code node (JavaScript)
-- **Purpose**: Transform data types for Supabase schema compatibility
-- **Transformations**:
-  - `nutrition` object → `nutritionalInfo` JSON string
-  - `concerns` array → `concernsText` newline-separated string
-  - `healthScore` capped at 99.9 and rounded to 1 decimal place
-
-#### 7. Store in Supabase
-- **Type**: n8n-nodes-base.supabase
-- **Operation**: Insert row into `products` table
-- **Field Mappings**:
-  ```
-  product_name    → productName
-  brand           → brand
-  category        → category
-  sub_category    → subCategory
-  expiry_date     → expiryDate (DATE)
-  mrp             → mrp (TEXT)
-  weight          → weight (TEXT)
-  ingredients     → ingredients (TEXT)
-  nutritional_info → nutritionalInfo (TEXT/JSON)
-  health_score    → healthScore (NUMERIC(3,1))
-  health_rating   → healthRating (TEXT)
-  concerns        → concernsText (TEXT)
-  quantity        → quantity (INTEGER)
-  date_added      → extractedAt (TIMESTAMP)
-  ```
-
-#### 8. Check Expiry Alert
-- **Type**: n8n-nodes-base.if
-- **Condition**: `daysToExpireRaw <= 7`
-- **Purpose**: Determines if expiry alert should be sent
-- **Note**: Alert functionality currently disabled (no WhatsApp node connected)
-
-#### 9. Webhook Response
-- **Type**: n8n-nodes-base.respondToWebhook
-- **Format**: JSON
-- **Response Structure**:
-  ```json
-  {
-    "success": true,
-    "product": "Product Name",
-    "expiryDate": "2025-12-31",
-    "daysToExpire": "2 months",
-    "healthRating": "Moderate",
-    "alertSent": false
-  }
-  ```
+**6. Respond with Analysis Results**
+- Returns: `{ "success": true, "data": {...} }`
+- **Does NOT save to database**
 
 ---
 
 ## Workflow 2: Multi-Image Analysis
 
 **Webhook**: `POST https://n8n.kochar.dev/webhook/product-analyzer-multi`
+**ID**: `DMkW7xPZcZygKQ9J`
 
-### Node Flow
+### Flow
 ```
-1. Webhook Trigger
-   ↓
-2. Prepare Images Array
-   ↓
-3. Split Out Images
-   ↓
-4. Gemini Vision API (Loop: per image)
-   ↓
-5. Parse Single Image Response
-   ↓
-6. Aggregate All Results
-   ↓
-7. Merge Results (Intelligent Strategy)
-   ↓
-8. Calculate Days to Expire
-   ↓
-9. Analyze Health Rating
-   ↓
-10. Prepare for Database
-   ↓
-11. Store in Supabase
-   ↓
-12. Webhook Response
+Webhook → Extract Images → Loop (Gemini → Parse) → Merge → Calculate Expiry → Analyze Health → Response
 ```
 
-### Key Differences from Single-Image Workflow
+### Nodes
 
-#### 2. Prepare Images Array
-- **Type**: n8n-nodes-base.set
-- **Purpose**: Extract binary image keys from FormData
-- **Logic**:
-  ```javascript
-  Object.keys($binary)
-    .filter(k => k.startsWith('image'))
-    .map((key, index) => ({
-      key,
-      index,
-      fileName: $binary[key].fileName || `image_${index}.jpg`
-    }))
-  ```
-- **Output**: Array of image metadata objects
+**1. Webhook - Receive Multiple Images**
+- Path: `/product-analyzer-multi`
+- Input: FormData with `image0`, `image1`, ... `image4` (max 5)
 
-#### 3. Split Out Images
-- **Type**: n8n-nodes-base.splitOut
-- **Field**: `images` array
-- **Purpose**: Creates one execution item per image for loop processing
-- **Note**: Each item retains access to all binary images via `$json.key`
+**2. Extract Images from FormData**
+- Validates: 1-5 images
+- Extracts binary data and metadata (index, filename, size)
 
-#### 4-5. Image Processing Loop
-- **Sequential Processing**: Each image processed individually
-- **Error Handling**: Failed images don't stop workflow
-- **Metadata**: Each result tagged with `_imageIndex`, `_imageName`, `_extractionSuccess`
+**3. Loop Over Items**
+- Type: `splitInBatches`
+- Processes each image sequentially
 
-#### 6. Aggregate All Results
-- **Type**: n8n-nodes-base.aggregate
-- **Purpose**: Collects all loop results into single item with `data` array
+**4. Gemini Vision API** (per image)
+- Same prompt as single-image workflow
 
-#### 7. Merge Results (CRITICAL NODE)
-- **Type**: Code node (JavaScript)
-- **Purpose**: Intelligent merging of multiple image results
-- **Input**: Array of parsed product data from all images
-- **Output**: Single merged product object
+**5. Parse Single Image Response**
+- Parses each response individually
+- Tags with `_extractionSuccess`, `_imageIndex`, `_imageName`
+- Failed images don't stop workflow
 
-**Merging Strategies**:
+**6. Merge Results** ⭐
+- **Merging Strategies**:
+  - Product Name/Brand: **LONGEST** (most descriptive)
+  - Category/Weight: **MOST FREQUENT** (voting)
+  - Expiry Date: **EARLIEST** (safety first)
+  - MRP: **HIGHEST** (accurate price)
+  - Ingredients: **DEDUPLICATE & MERGE**
+  - Nutrition: **AVERAGE** (non-null values)
 
-| Field | Strategy | Rationale |
-|-------|----------|-----------|
-| **Product Name** | LONGEST | Most descriptive text |
-| **Brand** | LONGEST | Most complete brand info |
-| **Category** | MOST FREQUENT | Voting consensus |
-| **Sub-category** | MOST FREQUENT | Voting consensus |
-| **Expiry Date** | EARLIEST | Safety first (conservative) |
-| **MRP** | HIGHEST | Accurate retail price |
-| **Weight** | MOST FREQUENT | Common value wins |
-| **Ingredients** | DEDUPLICATE & MERGE | Captures all visible ingredients |
-| **Nutrition** | AVERAGE (non-null) | Statistical accuracy |
+- **Confidence Calculation** (0-100%):
+  - 9 fields checked (11% each)
+  - Product name/brand/category/subcategory/expiry/MRP/weight match = 100% agreement
+  - Ingredients: ≥70% Jaccard similarity
+  - Nutrition: ≥80% of values within 20% range
 
-**Confidence Calculation**:
-- **Algorithm**: Measures field agreement across images
-- **Scoring**:
-  - Each field agreement: +11% (9 fields total)
-  - Product name match: All identical = +11%
-  - Brand match: All identical = +11%
-  - Category match: All identical = +11%
-  - Sub-category match: All identical = +11%
-  - Expiry date match: All identical = +11%
-  - MRP match: All identical = +11%
-  - Weight match: All identical = +11%
-  - Ingredients overlap: ≥70% Jaccard similarity = +11%
-  - Nutrition agreement: ≥80% of values within 20% range = +11%
-- **Range**: 0-100%
-- **Interpretation**:
-  - 90-100%: Excellent agreement
-  - 80-89%: Very good
-  - 70-79%: Good
-  - 60-69%: Moderate (review recommended)
-  - <60%: Low (manual review needed)
-
-**Metadata Output**:
-```json
-{
-  "_metadata": {
+- **Metadata**:
+  ```json
+  {
     "imagesProcessed": 3,
     "totalImages": 5,
     "failedImages": 2,
     "failedImageNames": ["image_2.jpg", "image_4.jpg"],
     "confidence": 87
   }
-}
+  ```
+
+**7-8. Calculate Expiry & Analyze Health**
+- Same logic as single-image workflow
+
+**9. Respond with Analysis Results**
+- Returns: `{ "success": true, "data": {...}, "metadata": {...} }`
+- **Does NOT save to database**
+
+---
+
+## Workflow 3: Save Analysis
+
+**Webhook**: `POST https://n8n.kochar.dev/webhook/save-product`
+**ID**: `kRO0IHtEplqQjnNn`
+
+### Flow
+```
+Webhook → Prepare for Database → Store in Supabase → Response
 ```
 
-**Error Handling**:
-- If all images fail: Throws error "All images failed to extract data"
-- If some images fail: Merges successful results only
-- Failed images tracked in metadata
+### Nodes
 
-#### 8-11. Post-Processing
-- **Same as Single-Image Workflow**: Calculate Days to Expire, Analyze Health Rating, Prepare for Database, Store in Supabase
+**1. Webhook - Save Product**
+- Path: `/save-product`
+- Input: Reviewed/edited product data from web app
 
-#### 12. Webhook Response
-- **Format**: JSON with merged data + metadata
-- **Structure**:
-  ```json
-  {
-    "success": true,
-    "data": {
-      "productName": "...",
-      "brand": "...",
-      "category": "...",
-      "expiryDate": "2025-12-31",
-      "nutrition": { ... },
-      "daysToExpire": "2 months",
-      "healthRating": "Moderate",
-      "healthScore": 67.5,
-      "concerns": [ ... ]
-    },
-    "metadata": {
-      "imagesProcessed": 3,
-      "totalImages": 3,
-      "failedImages": 0,
-      "confidence": 95
-    }
-  }
-  ```
+**2. Prepare for Database**
+- Transforms:
+  - `nutrition` object → JSON string (TEXT)
+  - `concerns` array → newline-separated string (TEXT)
+  - `healthScore` capped at 99.9, rounded to 1 decimal (NUMERIC(3,1))
+
+**3. Create a row** (Supabase)
+- Table: `products`
+- Inserts all fields with proper type mapping
+
+**4. Webhook Response - Save**
+- Returns: `{ "success": true, "message": "Product saved successfully", "data": {...} }`
 
 ---
 
 ## Shared Components
 
 ### Gemini Vision API Prompt
-Both workflows use identical prompt:
 
 ```
-Analyze this product packaging image and extract the following information for this consumable item:
+Analyze this product packaging image and extract the following information:
 
 - Product Name (full name including brand)
-- Brand (manufacturer/brand name separately, e.g., "Britannia", "Parle", "Amul")
-- Category (main product type: Snacks, Beverages, Dairy, Bakery, Confectionery, Frozen Foods, Ready to Eat, Condiments, etc.)
-- Sub-category (specific type: Biscuits, Chips, Cookies, Chocolates, Juice, Milk, Cheese, Bread, etc.)
-- Expiry Date (format as YYYY-MM-DD, look for "Best Before", "Exp Date", "Use By")
-- MRP (Maximum Retail Price with currency symbol)
-- Weight/Quantity (with unit like g, kg, ml, L)
-- Ingredients (complete comma-separated list)
-- Nutritional Information (key nutrients per 100g/100ml: Energy/Calories, Protein, Carbohydrates, Total Sugar, Total Fat, Saturated Fat, Trans Fat, Sodium, Fiber)
+- Brand (manufacturer name, e.g., "Britannia", "Parle")
+- Category (Snacks, Beverages, Dairy, Bakery, etc.)
+- Sub-category (Biscuits, Chips, Cookies, etc.)
+- Expiry Date (YYYY-MM-DD format)
+- MRP (with currency symbol)
+- Weight/Quantity (with unit: g, kg, ml, L)
+- Ingredients (comma-separated list)
+- Nutritional Information (per 100g/100ml):
+  Energy, Protein, Carbs, Sugar, Fat, Saturated Fat, Trans Fat, Sodium, Fiber
 
-IMPORTANT: Return ONLY valid JSON with no markdown formatting or code blocks.
-
-JSON format:
+Return ONLY valid JSON (no markdown):
 {
   "productName": "string",
   "brand": "string",
@@ -358,7 +181,7 @@ JSON format:
   "expiryDate": "YYYY-MM-DD",
   "mrp": "string with currency",
   "weight": "string with unit",
-  "ingredients": "comma-separated string",
+  "ingredients": "comma-separated",
   "nutrition": {
     "energyKcal": number,
     "proteinG": number,
@@ -377,101 +200,134 @@ JSON format:
 
 **Table**: `products`
 
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| `id` | UUID | PRIMARY KEY, DEFAULT uuid_generate_v4() | Auto-generated ID |
-| `product_name` | TEXT | NOT NULL | Product name |
-| `brand` | TEXT | | Brand/manufacturer |
-| `category` | TEXT | | Main category |
-| `sub_category` | TEXT | | Sub-category |
-| `expiry_date` | DATE | | Expiry date |
-| `mrp` | TEXT | | Maximum Retail Price |
-| `weight` | TEXT | | Weight/quantity with unit |
-| `ingredients` | TEXT | | Comma-separated ingredients |
-| `nutritional_info` | TEXT | | JSON string of nutrition data |
-| `health_score` | NUMERIC(3,1) | CHECK (health_score >= 0 AND health_score <= 99.9) | Health score 0-99.9 |
-| `health_rating` | TEXT | | "Healthy", "Moderate", "Not Healthy", "Harmful" |
-| `concerns` | TEXT | | Newline-separated health concerns |
-| `quantity` | INTEGER | DEFAULT 1 | Quantity in inventory |
-| `date_added` | TIMESTAMP | DEFAULT NOW() | When added to database |
-| `created_at` | TIMESTAMP | DEFAULT NOW() | Record creation time |
-| `updated_at` | TIMESTAMP | DEFAULT NOW() | Last update time |
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `product_name` | TEXT | Product name |
+| `brand` | TEXT | Brand/manufacturer |
+| `category` | TEXT | Main category |
+| `sub_category` | TEXT | Sub-category |
+| `expiry_date` | DATE | Expiry date |
+| `mrp` | TEXT | Maximum Retail Price |
+| `weight` | TEXT | Weight/quantity with unit |
+| `ingredients` | TEXT | Comma-separated ingredients |
+| `nutritional_info` | TEXT | JSON string of nutrition data |
+| `health_score` | NUMERIC(3,1) | 0-99.9 |
+| `health_rating` | TEXT | Healthy/Moderate/Not Healthy/Harmful |
+| `concerns` | TEXT | Newline-separated health concerns |
+| `quantity` | INTEGER | Quantity in inventory |
+| `date_added` | TIMESTAMP | When added |
+| `created_at` | TIMESTAMP | Record creation |
+| `updated_at` | TIMESTAMP | Last update |
 
 ---
 
-## API Integration
+## API Endpoints
 
-### Single-Image Endpoint
-
+### Single-Image Analysis
 **Web API**: `POST /api/analyze`
 **n8n Webhook**: `POST https://n8n.kochar.dev/webhook/product-analyzer`
 
-**Request** (FormData):
+**Request**:
 ```javascript
 const formData = new FormData()
-formData.append('image', file) // Single File object
-
-fetch('/api/analyze', {
-  method: 'POST',
-  body: formData
-})
+formData.append('image', file)
+fetch('/api/analyze', { method: 'POST', body: formData })
 ```
 
 **Response**:
-```typescript
+```json
 {
-  success: boolean
-  product?: string
-  expiryDate?: string
-  daysToExpire?: string
-  healthRating?: string
-  alertSent?: boolean
-  error?: string
+  "success": true,
+  "data": {
+    "productName": "...",
+    "brand": "...",
+    "expiryDate": "2025-12-31",
+    "daysToExpire": "2 months",
+    "healthRating": "Moderate",
+    "healthScore": 67.5,
+    "concerns": [...]
+  }
 }
 ```
 
-### Multi-Image Endpoint
-
+### Multi-Image Analysis
 **Web API**: `POST /api/analyze-multiple`
 **n8n Webhook**: `POST https://n8n.kochar.dev/webhook/product-analyzer-multi`
 
-**Request** (FormData):
+**Request**:
 ```javascript
 const formData = new FormData()
 formData.append('image0', file1)
 formData.append('image1', file2)
-formData.append('image2', file3)
-// ... up to image4 (max 5 images)
+// ... up to image4 (max 5)
+fetch('/api/analyze-multiple', { method: 'POST', body: formData })
+```
 
-fetch('/api/analyze-multiple', {
+**Response**:
+```json
+{
+  "success": true,
+  "data": { /* same as single-image */ },
+  "metadata": {
+    "imagesProcessed": 3,
+    "totalImages": 3,
+    "failedImages": 0,
+    "confidence": 95
+  }
+}
+```
+
+### Save Product
+**Web API**: `POST /api/save`
+**n8n Webhook**: `POST https://n8n.kochar.dev/webhook/save-product`
+
+**Request**:
+```javascript
+fetch('/api/save', {
   method: 'POST',
-  body: formData
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(productData)
 })
 ```
 
 **Response**:
-```typescript
+```json
 {
-  success: boolean
-  data?: {
-    productName: string
-    brand: string
-    category: string
-    expiryDate: string
-    nutrition: object
-    daysToExpire: string
-    healthRating: string
-    healthScore: number
-    concerns: string[]
-  }
-  metadata?: {
-    imagesProcessed: number
-    totalImages: number
-    failedImages: number
-    failedImageNames?: string[]
-    confidence: number
-  }
-  error?: string
-  code?: string
+  "success": true,
+  "message": "Product saved successfully",
+  "data": { /* saved product record */ }
 }
 ```
+
+---
+
+## Health Rating Algorithm
+
+**Base Score**: 100
+
+**Penalties**:
+- Trans fats: -40
+- High fructose corn syrup: -25
+- Artificial sweeteners: -20
+- Sodium nitrite: -20
+- Artificial colors: -15
+- MSG: -15
+- High sugar (>15g/100g): -15
+- High sodium (>500mg/100g): -15
+- High saturated fat (>5g/100g): -15
+- Trans fat (any amount): -30
+- Palm oil: -10
+- Multiple preservatives: -10
+
+**Bonuses**:
+- High fiber (≥5g/100g): +5
+- High protein (≥10g/100g): +5
+
+**Final**: Clamped to 0-99.9
+
+**Ratings**:
+- 80-100: Healthy
+- 60-79: Moderate
+- 40-59: Not Healthy
+- 0-39: Harmful

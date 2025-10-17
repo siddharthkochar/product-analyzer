@@ -14,20 +14,24 @@ const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build' || proce
 
 let N8N_WEBHOOK_URL: string
 let N8N_SAVE_WEBHOOK_URL: string
+let N8N_MULTI_WEBHOOK_URL: string
 
 if (isBuildTime) {
   // Use placeholder values during build - they will be replaced at runtime
   console.log('[N8N] Build time detected - skipping environment validation')
   N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL || 'BUILD_TIME_PLACEHOLDER'
   N8N_SAVE_WEBHOOK_URL = process.env.N8N_SAVE_WEBHOOK_URL || 'BUILD_TIME_PLACEHOLDER'
+  N8N_MULTI_WEBHOOK_URL = process.env.N8N_MULTI_WEBHOOK_URL || 'BUILD_TIME_PLACEHOLDER'
 } else {
   // Runtime validation - ensure env vars are available
   N8N_WEBHOOK_URL = validateEnvVar('N8N_WEBHOOK_URL', process.env.N8N_WEBHOOK_URL)
   N8N_SAVE_WEBHOOK_URL = validateEnvVar('N8N_SAVE_WEBHOOK_URL', process.env.N8N_SAVE_WEBHOOK_URL)
+  N8N_MULTI_WEBHOOK_URL = validateEnvVar('N8N_MULTI_WEBHOOK_URL', process.env.N8N_MULTI_WEBHOOK_URL)
 
   console.log('[N8N] Configuration loaded successfully')
   console.log('[N8N] Analyze webhook:', N8N_WEBHOOK_URL.substring(0, 30) + '...')
   console.log('[N8N] Save webhook:', N8N_SAVE_WEBHOOK_URL.substring(0, 30) + '...')
+  console.log('[N8N] Multi-image webhook:', N8N_MULTI_WEBHOOK_URL.substring(0, 30) + '...')
 }
 
 export interface N8nAnalyzeResponse {
@@ -253,6 +257,125 @@ export async function saveProductToDatabase(productData: any): Promise<N8nSaveRe
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred while saving product',
+    }
+  }
+}
+
+export interface N8nMultiImageAnalyzeResponse {
+  success: boolean
+  data?: any
+  metadata?: {
+    imagesProcessed: number
+    totalImages: number
+    failedImages: number
+    failedImageNames?: string[]
+    confidence: number
+    processingTimeMs: number
+  }
+  error?: string
+}
+
+export async function analyzeMultipleProductImages(
+  imageFiles: (File | Blob)[]
+): Promise<N8nMultiImageAnalyzeResponse> {
+  const startTime = Date.now()
+
+  try {
+    console.log('[N8N MULTI] Calling multi-image webhook:', N8N_MULTI_WEBHOOK_URL)
+    console.log('[N8N MULTI] Number of images:', imageFiles.length)
+
+    // Create FormData and append all images
+    const formData = new FormData()
+    imageFiles.forEach((file, index) => {
+      const fileName = file instanceof File ? file.name : `image_${index}.jpg`
+      formData.append(`image${index}`, file, fileName)
+      console.log(`[N8N MULTI] Added image${index}: ${fileName} (${file.size} bytes, ${file.type})`)
+    })
+
+    // Create abort controller for timeout (60 seconds for multi-image processing)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
+
+    try {
+      const response = await fetch(N8N_MULTI_WEBHOOK_URL, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      console.log('[N8N MULTI] Response status:', response.status)
+      console.log('[N8N MULTI] Response headers:', Object.fromEntries(response.headers.entries()))
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[N8N MULTI] Error response:', errorText)
+        throw new Error(
+          `n8n multi-image webhook failed with status ${response.status}: ${response.statusText}`
+        )
+      }
+
+      const responseText = await response.text()
+      console.log('[N8N MULTI] Response text (first 500 chars):', responseText.substring(0, 500))
+
+      if (!responseText || responseText.trim() === '') {
+        console.error('[N8N MULTI] Empty response from webhook')
+        throw new Error(
+          'n8n multi-image webhook returned empty response. The workflow may not be configured to return data.'
+        )
+      }
+
+      const data = JSON.parse(responseText)
+      console.log('[N8N MULTI] Parsed response:', JSON.stringify(data, null, 2))
+
+      const processingTimeMs = Date.now() - startTime
+      console.log(`[N8N MULTI] Processing completed in ${processingTimeMs}ms`)
+
+      // If response already has success/data/metadata structure, return it
+      if (data && typeof data === 'object' && 'success' in data) {
+        return {
+          ...data,
+          metadata: {
+            ...data.metadata,
+            processingTimeMs,
+          },
+        }
+      }
+
+      // Otherwise wrap it
+      return {
+        success: true,
+        data,
+        metadata: {
+          imagesProcessed: imageFiles.length,
+          totalImages: imageFiles.length,
+          failedImages: 0,
+          confidence: 100,
+          processingTimeMs,
+        },
+      }
+    } catch (fetchError) {
+      clearTimeout(timeoutId)
+
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('[N8N MULTI] Request timed out after 60 seconds')
+        return {
+          success: false,
+          error: 'Multi-image analysis timed out after 60 seconds. Please try with fewer images.',
+        }
+      }
+
+      throw fetchError
+    }
+  } catch (error) {
+    const processingTimeMs = Date.now() - startTime
+    console.error('[N8N MULTI] Error calling n8n multi-image webhook:', error)
+    console.error('[N8N MULTI] Processing failed after', processingTimeMs, 'ms')
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error during multi-image analysis',
     }
   }
 }

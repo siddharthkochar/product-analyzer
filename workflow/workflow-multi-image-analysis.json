@@ -1,0 +1,289 @@
+{
+  "name": "Product Analyzer - Multi Image Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "product-analyzer-multi",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b371d42e-bafb-4283-ab9d-61a4ee57526a",
+      "name": "Webhook - Receive Multiple Images",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        176
+      ],
+      "webhookId": "product-analyzer-multi",
+      "notes": "Receives multiple product packaging images via POST request.\n\nExpected payload: FormData with image0, image1, image2, etc.\n\nSupports 1-5 images per request."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract all images from FormData\nconst items = [];\nconst binaryData = $input.all();\n\nlet imageCount = 0;\nconst images = [];\n\nfor (const item of binaryData) {\n  if (item.binary) {\n    for (const [key, value] of Object.entries(item.binary)) {\n      if (key.startsWith('image')) {\n        images.push({\n          binary: { image: value },\n          json: {\n            imageIndex: imageCount,\n            imageName: value.fileName || `image_${imageCount}.jpg`,\n            mimeType: value.mimeType || 'image/jpeg',\n            fileSize: value.fileSize || 0\n          }\n        });\n        imageCount++;\n      }\n    }\n  }\n}\n\nif (imageCount === 0) {\n  throw new Error('No images found in request');\n}\n\nif (imageCount > 5) {\n  throw new Error('Maximum 5 images allowed');\n}\n\nconsole.log(`Processing ${imageCount} images`);\nreturn images;"
+      },
+      "id": "c35dae3b-46d7-436b-9f64-49703e075bc1",
+      "name": "Extract Images from FormData",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3744,
+        176
+      ],
+      "notes": "Extracts all images from FormData (image0, image1, etc.).\n\nValidates:\n- At least 1 image exists\n- Maximum 5 images\n\nOutputs array of images with metadata (index, name, type, size)."
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.0-flash-exp",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.0-flash-exp"
+        },
+        "text": "Analyze this product packaging image and extract the following information for this consumable item:\n\n  - Product Name (full name including brand)\n  - Brand (manufacturer/brand name separately, e.g., \"Britannia\", \"Parle\", \"Amul\")\n  - Category (main product type: Snacks, Beverages, Dairy, Bakery, Confectionery, Frozen Foods, Ready to Eat, Condiments, etc.)\n  - Sub-category (specific type: Biscuits, Chips, Cookies, Chocolates, Juice, Milk, Cheese, Bread, etc.)\n  - Expiry Date (format as YYYY-MM-DD, look for \"Best Before\", \"Exp Date\", \"Use By\")\n  - MRP (Maximum Retail Price with currency symbol)\n  - Weight/Quantity (with unit like g, kg, ml, L)\n  - Ingredients (complete comma-separated list)\n  - Nutritional Information (key nutrients per 100g/100ml: Energy/Calories, Protein, Carbohydrates, Total Sugar, Total Fat, Saturated Fat, Trans Fat, Sodium, Fiber)\n\n  IMPORTANT: Return ONLY valid JSON with no markdown formatting or code blocks.\n\n  JSON format:\n  {\n    \"productName\": \"string\",\n    \"brand\": \"string\",\n    \"category\": \"string\",\n    \"subCategory\": \"string\",\n    \"expiryDate\": \"YYYY-MM-DD\",\n    \"mrp\": \"string with currency\",\n    \"weight\": \"string with unit\",\n    \"ingredients\": \"comma-separated string\",\n    \"nutrition\": {\n      \"energyKcal\": number,\n      \"proteinG\": number,\n      \"carbsG\": number,\n      \"sugarG\": number,\n      \"fatG\": number,\n      \"saturatedFatG\": number,\n      \"transFatG\": number,\n      \"sodiumMg\": number,\n      \"fiberG\": number\n    }\n  }",
+        "inputType": "binary",
+        "binaryPropertyName": "image",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        4208,
+        320
+      ],
+      "id": "de64cf47-0735-42b3-9b50-07c1e078b8bb",
+      "name": "Gemini Vision API",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "LacQX7GUTMSqsofm",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "notes": "Processes each image through Gemini Vision API.\n\nUses same prompt as single-image workflow.\n\nHandles rate limiting via sequential processing."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse each Gemini response\nlet imageIndex = 0;\nconst items = [];\n\nfor (const item of $input.all()) {\n  try {\n    let extractedText = '';\n    const data = item.json;\n\n    // Extract text from Gemini (same as current workflow)\n    if (Array.isArray(data) && data.length > 0) {\n      const firstItem = data[0];\n      if (firstItem.content?.parts?.[0]?.text) {\n        extractedText = firstItem.content.parts[0].text;\n      }\n    } else if (data.content?.parts?.[0]?.text) {\n      extractedText = data.content.parts[0].text;\n    } else if (typeof data.response === 'string') {\n      extractedText = data.response;\n    } else if (typeof data.text === 'string') {\n      extractedText = data.text;\n    }\n\n    if (!extractedText) {\n      throw new Error('No response from Gemini API');\n    }\n\n    extractedText = extractedText\n      .replace(/```json\\n?/gi, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n\n    const productData = JSON.parse(extractedText);\n    \n    // Add metadata using loop counter\n    productData._imageIndex = imageIndex;\n    productData._imageName = item.binary?.image?.fileName || `image_${imageIndex}.jpg`;\n    productData._extractionSuccess = true;\n\n    items.push({ json: productData, binary: item.binary });\n\n  } catch (err) {\n    console.error(`Image ${imageIndex} failed:`, err.message);\n    \n    items.push({\n      json: {\n        _imageIndex: imageIndex,\n        _imageName: item.binary?.image?.fileName || `image_${imageIndex}.jpg`,\n        _extractionSuccess: false,\n        _error: err.message\n      }\n    });\n  }\n  \n  imageIndex++;\n}\n\nreturn items;"
+      },
+      "id": "d84a00b2-6b3b-4557-a758-b1aef37c1fb0",
+      "name": "Parse Single Image Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4432,
+        320
+      ],
+      "notes": "Parses each Gemini response individually.\n\nHandles:\n- JSON extraction and cleanup\n- Error handling (graceful failure)\n- Metadata tagging (_imageIndex, _imageName, _extractionSuccess)\n\nFailed images don't stop the workflow."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge all results using intelligent strategy\nconst allResults = $input.all();\n\nconsole.log(`Merging ${allResults.length} image results...`);\n\n// Separate successful and failed extractions\nconst successfulResults = allResults.filter(item => item.json._extractionSuccess === true);\nconst failedResults = allResults.filter(item => item.json._extractionSuccess === false);\n\nconsole.log(`Successful: ${successfulResults.length}, Failed: ${failedResults.length}`);\n\nif (successfulResults.length === 0) {\n  throw new Error('All images failed to extract data');\n}\n\n// Helper: Select longest string\nfunction selectLongest(values) {\n  const validValues = values.filter(v => v && typeof v === 'string' && v.trim() !== '');\n  if (validValues.length === 0) return '';\n  return validValues.reduce((longest, current) => \n    current.length > longest.length ? current : longest\n  );\n}\n\n// Helper: Select most frequent value\nfunction selectMostFrequent(values) {\n  const validValues = values.filter(v => v && typeof v === 'string' && v.trim() !== '');\n  if (validValues.length === 0) return '';\n  \n  const frequency = {};\n  validValues.forEach(v => {\n    frequency[v] = (frequency[v] || 0) + 1;\n  });\n  \n  return Object.keys(frequency).reduce((a, b) => \n    frequency[a] > frequency[b] ? a : b\n  );\n}\n\n// Helper: Select earliest date (most conservative for expiry)\nfunction selectEarliest(dates) {\n  const validDates = dates\n    .filter(d => d && typeof d === 'string' && d.trim() !== '')\n    .map(d => new Date(d))\n    .filter(d => !isNaN(d.getTime()));\n  \n  if (validDates.length === 0) return null;\n  \n  const earliest = validDates.reduce((min, current) => \n    current < min ? current : min\n  );\n  \n  return earliest.toISOString().split('T')[0];\n}\n\n// Helper: Select highest price\nfunction selectHighestPrice(prices) {\n  const validPrices = prices.filter(p => p && typeof p === 'string' && p.trim() !== '');\n  if (validPrices.length === 0) return 'N/A';\n  \n  // Extract numeric value for comparison\n  const pricesWithValues = validPrices.map(p => {\n    const match = p.match(/([\\d.]+)/);\n    return {\n      original: p,\n      value: match ? parseFloat(match[1]) : 0\n    };\n  });\n  \n  return pricesWithValues.reduce((max, current) => \n    current.value > max.value ? current : max\n  ).original;\n}\n\n// Helper: Merge ingredients (deduplicate)\nfunction mergeIngredients(ingredientLists) {\n  const allIngredients = new Set();\n  \n  ingredientLists.forEach(list => {\n    if (list && typeof list === 'string') {\n      const ingredients = list.split(',').map(i => i.trim().toLowerCase());\n      ingredients.forEach(i => {\n        if (i) allIngredients.add(i);\n      });\n    }\n  });\n  \n  return Array.from(allIngredients).join(', ');\n}\n\n// Helper: Merge nutrition (average non-null values)\nfunction mergeNutrition(nutritionObjects) {\n  const merged = {};\n  const keys = ['energyKcal', 'proteinG', 'carbsG', 'sugarG', 'fatG', 'saturatedFatG', 'transFatG', 'sodiumMg', 'fiberG'];\n  \n  keys.forEach(key => {\n    const validValues = nutritionObjects\n      .map(n => n[key])\n      .filter(v => v != null && typeof v === 'number' && !isNaN(v));\n    \n    if (validValues.length > 0) {\n      const sum = validValues.reduce((a, b) => a + b, 0);\n      merged[key] = Math.round((sum / validValues.length) * 10) / 10;\n    } else {\n      merged[key] = null;\n    }\n  });\n  \n  return merged;\n}\n\n// Helper: Calculate confidence based on field agreement\nfunction calculateConfidence(results, mergedProduct) {\n  let agreementScore = 0;\n  const totalFields = 9; // Number of key fields to check\n  \n  // Check agreement for each field\n  const productNames = results.map(r => r.productName);\n  const uniqueProductNames = new Set(productNames.filter(p => p));\n  if (uniqueProductNames.size === 1) agreementScore += 1;\n  \n  const brands = results.map(r => r.brand);\n  const uniqueBrands = new Set(brands.filter(b => b));\n  if (uniqueBrands.size === 1) agreementScore += 1;\n  \n  const categories = results.map(r => r.category);\n  const uniqueCategories = new Set(categories.filter(c => c));\n  if (uniqueCategories.size === 1) agreementScore += 1;\n  \n  const subCategories = results.map(r => r.subCategory);\n  const uniqueSubCategories = new Set(subCategories.filter(s => s));\n  if (uniqueSubCategories.size === 1) agreementScore += 1;\n  \n  const expiryDates = results.map(r => r.expiryDate);\n  const uniqueExpiryDates = new Set(expiryDates.filter(e => e));\n  if (uniqueExpiryDates.size === 1) agreementScore += 1;\n  \n  const mrps = results.map(r => r.mrp);\n  const uniqueMrps = new Set(mrps.filter(m => m));\n  if (uniqueMrps.size === 1) agreementScore += 1;\n  \n  const weights = results.map(r => r.weight);\n  const uniqueWeights = new Set(weights.filter(w => w));\n  if (uniqueWeights.size === 1) agreementScore += 1;\n  \n  // Ingredients - check if at least 70% overlap\n  const ingredientSets = results.map(r => {\n    if (!r.ingredients) return new Set();\n    return new Set(r.ingredients.toLowerCase().split(',').map(i => i.trim()));\n  }).filter(s => s.size > 0);\n  \n  if (ingredientSets.length > 1) {\n    const intersection = ingredientSets.reduce((acc, curr) => {\n      return new Set([...acc].filter(x => curr.has(x)));\n    });\n    const union = ingredientSets.reduce((acc, curr) => {\n      return new Set([...acc, ...curr]);\n    });\n    const overlap = intersection.size / union.size;\n    if (overlap >= 0.7) agreementScore += 1;\n  } else if (ingredientSets.length === 1) {\n    agreementScore += 1;\n  }\n  \n  // Nutrition - check if values are within 20% of each other\n  const nutritionObjects = results.map(r => r.nutrition).filter(n => n);\n  if (nutritionObjects.length > 1) {\n    const keys = ['energyKcal', 'proteinG', 'carbsG', 'sugarG', 'fatG'];\n    let nutritionAgreement = 0;\n    let nutritionChecks = 0;\n    \n    keys.forEach(key => {\n      const values = nutritionObjects.map(n => n[key]).filter(v => v != null && !isNaN(v));\n      if (values.length > 1) {\n        nutritionChecks++;\n        const avg = values.reduce((a, b) => a + b, 0) / values.length;\n        const allWithin20Percent = values.every(v => Math.abs(v - avg) / avg <= 0.2);\n        if (allWithin20Percent) nutritionAgreement++;\n      }\n    });\n    \n    if (nutritionChecks > 0 && nutritionAgreement / nutritionChecks >= 0.8) {\n      agreementScore += 1;\n    }\n  } else if (nutritionObjects.length === 1) {\n    agreementScore += 1;\n  }\n  \n  return Math.round((agreementScore / totalFields) * 100);\n}\n\n// Extract data from successful results\nconst results = successfulResults.map(item => item.json);\n\n// Apply merging strategies\nconst mergedProduct = {\n  productName: selectLongest(results.map(r => r.productName)),\n  brand: selectLongest(results.map(r => r.brand)),\n  category: selectMostFrequent(results.map(r => r.category)),\n  subCategory: selectMostFrequent(results.map(r => r.subCategory)),\n  expiryDate: selectEarliest(results.map(r => r.expiryDate)),\n  mrp: selectHighestPrice(results.map(r => r.mrp)),\n  weight: selectMostFrequent(results.map(r => r.weight)),\n  ingredients: mergeIngredients(results.map(r => r.ingredients)),\n  nutrition: mergeNutrition(results.map(r => r.nutrition || {})),\n  quantity: 1,\n  extractedAt: new Date().toISOString()\n};\n\n// Calculate confidence\nconst confidence = calculateConfidence(results, mergedProduct);\n\n// Add metadata\nmergedProduct._metadata = {\n  imagesProcessed: successfulResults.length,\n  totalImages: allResults.length,\n  failedImages: failedResults.length,\n  failedImageNames: failedResults.map(r => r.json._imageName),\n  confidence: confidence\n};\n\nconsole.log('Merged product:', JSON.stringify(mergedProduct, null, 2));\nconsole.log('Confidence:', confidence + '%');\n\nreturn [{ json: mergedProduct }];"
+      },
+      "id": "293cbc43-9992-49e4-bfdd-d71add848f8f",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4208,
+        160
+      ],
+      "notes": "CRITICAL: Intelligent merging of all image results.\n\nStrategies:\n- Product name/brand: LONGEST (most descriptive)\n- Category/weight: MOST FREQUENT (voting)\n- Expiry date: EARLIEST (safety first)\n- MRP: HIGHEST\n- Ingredients: DEDUPLICATE and merge\n- Nutrition: AVERAGE non-null values\n\nCalculates confidence based on field agreement across images."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate days to expire in human-readable format\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  // Parse expiry date\n  if (!data.expiryDate) {\n    items.push({\n      json: {\n        ...data,\n        daysToExpire: 'Unknown',\n        expiryStatus: 'Unknown',\n        daysToExpireRaw: null\n      },\n      pairedItem: { item: 0 }\n    });\n    continue;\n  }\n  \n  const expiryDate = new Date(data.expiryDate);\n  const today = new Date();\n  today.setHours(0, 0, 0, 0);\n  expiryDate.setHours(0, 0, 0, 0);\n  \n  const diffTime = expiryDate - today;\n  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));\n  \n  let humanReadable = '';\n  let status = '';\n  \n  if (diffDays < 0) {\n    humanReadable = `Expired ${Math.abs(diffDays)} days ago`;\n    status = 'Expired';\n  } else if (diffDays === 0) {\n    humanReadable = 'Expires today';\n    status = 'Critical';\n  } else if (diffDays === 1) {\n    humanReadable = 'Expires tomorrow';\n    status = 'Critical';\n  } else if (diffDays <= 7) {\n    humanReadable = `${diffDays} days`;\n    status = 'Warning';\n  } else if (diffDays <= 14) {\n    const weeks = Math.floor(diffDays / 7);\n    const days = diffDays % 7;\n    if (days === 0) {\n      humanReadable = `${weeks} week${weeks > 1 ? 's' : ''}`;\n    } else {\n      humanReadable = `${weeks} week${weeks > 1 ? 's' : ''} ${days} day${days > 1 ? 's' : ''}`;\n    }\n    status = 'Good';\n  } else if (diffDays <= 30) {\n    humanReadable = `${diffDays} days`;\n    status = 'Good';\n  } else {\n    const months = Math.floor(diffDays / 30);\n    const remainingDays = diffDays % 30;\n    if (remainingDays === 0) {\n      humanReadable = `${months} month${months > 1 ? 's' : ''}`;\n    } else if (remainingDays <= 7) {\n      humanReadable = `${months} month${months > 1 ? 's' : ''} ${remainingDays} day${remainingDays > 1 ? 's' : ''}`;\n    } else {\n      const weeks = Math.floor(remainingDays / 7);\n      humanReadable = `${months} month${months > 1 ? 's' : ''} ${weeks} week${weeks > 1 ? 's' : ''}`;\n    }\n    status = 'Good';\n  }\n  \n  items.push({\n    json: {\n      ...data,\n      daysToExpire: humanReadable,\n      expiryStatus: status,\n      daysToExpireRaw: diffDays\n    },\n    pairedItem: { item: 0 }\n  });\n}\n\nreturn items;"
+      },
+      "id": "dc0715fc-d380-4439-a704-527b3a469a7b",
+      "name": "Calculate Days to Expire",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4432,
+        160
+      ],
+      "notes": "Same logic as single-image workflow.\n\nCalculates expiry in human-readable format with status."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analyze health rating based on ingredients and nutrition\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  const ingredients = (data.ingredients || '').toLowerCase();\n  const nutrition = data.nutrition || {};\n  \n  let score = 100; // Start with perfect score\n  const concerns = [];\n  \n  // Check for harmful ingredients\n  const harmfulIngredients = [\n    { name: 'Contains trans fats which increase bad cholesterol and heart disease risk', penalty: 40, pattern: /trans.?fat|partially hydrogenated|hydrogenated oil/ },\n    { name: 'Contains high fructose corn syrup linked to obesity and diabetes', penalty: 25, pattern: /high.?fructose.?corn.?syrup|hfcs/ },\n    { name: 'Contains artificial sweeteners which may affect metabolism and gut health', penalty: 20, pattern: /aspartame|sucralose|saccharin|acesulfame/ },\n    { name: 'Contains MSG (flavor enhancer) which may cause sensitivity in some people', penalty: 15, pattern: /monosodium.?glutamate|msg|e621/ },\n    { name: 'Contains sodium nitrite (preservative) linked to cancer risk when consumed regularly', penalty: 20, pattern: /sodium.?nitrite|e250/ },\n    { name: 'Contains artificial colors which may cause hyperactivity in children', penalty: 15, pattern: /tartrazine|e102|e110|e129|sunset yellow|red 40/ },\n    { name: 'Contains palm oil which is high in saturated fat', penalty: 10, pattern: /palm.?oil/ },\n    { name: 'Contains multiple preservatives which may have cumulative health effects', penalty: 10, pattern: /(e2\\d{2}|preservative).*?(e2\\d{2}|preservative)/ }\n  ];\n  \n  harmfulIngredients.forEach(item => {\n    if (item.pattern.test(ingredients)) {\n      score -= item.penalty;\n      concerns.push(item.name);\n    }\n  });\n  \n  // Check nutritional values (per 100g/100ml) - handle null values\n  if (nutrition.sugarG != null && nutrition.sugarG > 15) {\n    score -= 15;\n    concerns.push(`High sugar content (${nutrition.sugarG}g per 100g) - linked to weight gain and diabetes`);\n  }\n  \n  if (nutrition.sodiumMg != null && nutrition.sodiumMg > 500) {\n    score -= 15;\n    concerns.push(`High sodium content (${nutrition.sodiumMg}mg per 100g) - may increase blood pressure`);\n  }\n  \n  if (nutrition.saturatedFatG != null && nutrition.saturatedFatG > 5) {\n    score -= 15;\n    concerns.push(`High saturated fat (${nutrition.saturatedFatG}g per 100g) - raises cholesterol levels`);\n  }\n  \n  if (nutrition.transFatG != null && nutrition.transFatG > 0) {\n    score -= 30;\n    concerns.push(`Contains trans fat (${nutrition.transFatG}g per 100g) - extremely harmful to heart health`);\n  }\n  \n  // Positive factors - handle null values\n  if (nutrition.fiberG != null && nutrition.fiberG >= 5) {\n    score += 5;\n  }\n  \n  if (nutrition.proteinG != null && nutrition.proteinG >= 10) {\n    score += 5;\n  }\n  \n  // Ensure score is between 0-100\n  score = Math.max(0, Math.min(100, score));\n  \n  // Cap score at 99.9 for database NUMERIC(3,1) constraint\n  score = Math.min(99.9, score);\n  \n  // Determine rating\n  let rating = '';\n  if (score >= 80) {\n    rating = 'Healthy';\n  } else if (score >= 60) {\n    rating = 'Moderate';\n  } else if (score >= 40) {\n    rating = 'Not Healthy';\n  } else {\n    rating = 'Harmful';\n  }\n  \n  items.push({\n    json: {\n      ...data,\n      healthRating: rating,\n      healthScore: score,\n      concerns: concerns\n    },\n    pairedItem: { item: 0 }\n  });\n}\n\nreturn items;"
+      },
+      "id": "74c3c5b4-1dc6-4e42-a87e-9ee1cf257dcc",
+      "name": "Analyze Health Rating",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4656,
+        160
+      ],
+      "notes": "Same logic as single-image workflow.\n\nAnalyzes health rating based on merged ingredients and nutrition data."
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        3968,
+        176
+      ],
+      "id": "1be7fd27-4124-49a2-bb40-ff0706e38947",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"data\": $json } }}",
+        "options": {}
+      },
+      "id": "0edbff91-904c-44ab-b762-3833cfa0003b",
+      "name": "Respond with Analysis Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        4896,
+        160
+      ],
+      "notes": "Returns analyzed product data to web app WITHOUT saving to database.\n\nUser can review and edit the information before saving."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Analyze Health Rating1": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Database1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Database1": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Receive Multiple Images": {
+      "main": [
+        [
+          {
+            "node": "Extract Images from FormData",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Images from FormData": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Vision API": {
+      "main": [
+        [
+          {
+            "node": "Parse Single Image Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Single Image Response": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Calculate Days to Expire",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Days to Expire": {
+      "main": [
+        [
+          {
+            "node": "Analyze Health Rating",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Health Rating": {
+      "main": [
+        [
+          {
+            "node": "Respond with Analysis Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Vision API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0df692db-898a-4cdc-8cf3-a98fd7fa02b9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "90b44310c8c08fb86dbf01f80fbd8baeb488eecbeea02ac56339a0d74268ca4f"
+  },
+  "id": "DMkW7xPZcZygKQ9J",
+  "tags": []
+}

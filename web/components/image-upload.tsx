@@ -7,15 +7,23 @@ import { Button } from '@/components/ui/button'
 import { validateImageFile } from '@/lib/utils/image-compression'
 
 interface ImageUploadProps {
-  onImageSelect: (file: File) => void
+  onImagesSelect: (files: File[]) => void
   disabled?: boolean
+  currentImageCount?: number
+  maxImages?: number
 }
 
-export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
+export function ImageUpload({
+  onImagesSelect,
+  disabled,
+  currentImageCount = 0,
+  maxImages = 5,
+}: ImageUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [hasCamera, setHasCamera] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+  const remainingSlots = maxImages - currentImageCount
 
   // Detect if device has camera capability
   useEffect(() => {
@@ -38,27 +46,44 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
     checkCamera()
   }, [])
 
-  const handleFileValidation = useCallback((file: File) => {
-    const validation = validateImageFile(file)
-    if (!validation.valid) {
-      setValidationError(validation.error || 'Invalid file')
-      return false
-    }
-    setValidationError(null)
-    return true
-  }, [])
+  const handleFilesValidation = useCallback(
+    (files: File[]) => {
+      // Check if adding these files would exceed max limit
+      if (currentImageCount + files.length > maxImages) {
+        setValidationError(
+          `Maximum ${maxImages} images allowed. You can add ${remainingSlots} more image${remainingSlots !== 1 ? 's' : ''}.`
+        )
+        return []
+      }
+
+      // Validate each file
+      const validFiles: File[] = []
+      for (const file of files) {
+        const validation = validateImageFile(file)
+        if (!validation.valid) {
+          setValidationError(validation.error || 'Invalid file')
+          return []
+        }
+        validFiles.push(file)
+      }
+
+      setValidationError(null)
+      return validFiles
+    },
+    [currentImageCount, maxImages, remainingSlots]
+  )
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
       if (acceptedFiles.length > 0) {
-        const file = acceptedFiles[0]
-        if (handleFileValidation(file)) {
-          onImageSelect(file)
+        const validFiles = handleFilesValidation(acceptedFiles)
+        if (validFiles.length > 0) {
+          onImagesSelect(validFiles)
         }
       }
       setIsDragging(false)
     },
-    [onImageSelect, handleFileValidation]
+    [onImagesSelect, handleFilesValidation]
   )
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -66,7 +91,8 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.webp'],
     },
-    maxFiles: 1,
+    maxFiles: remainingSlots,
+    multiple: true,
     disabled,
     onDragEnter: () => setIsDragging(true),
     onDragLeave: () => setIsDragging(false),
@@ -75,16 +101,20 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
 
   const handleCameraCapture = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (file && handleFileValidation(file)) {
-        onImageSelect(file)
+      const files = event.target.files
+      if (files && files.length > 0) {
+        const filesArray = Array.from(files)
+        const validFiles = handleFilesValidation(filesArray)
+        if (validFiles.length > 0) {
+          onImagesSelect(validFiles)
+        }
       }
       // Reset input value to allow selecting the same file again
       if (event.target) {
         event.target.value = ''
       }
     },
-    [onImageSelect, handleFileValidation]
+    [onImagesSelect, handleFilesValidation]
   )
 
   const handleBrowseClick = useCallback(() => {
@@ -119,14 +149,14 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
             <>
               <Upload className="h-16 w-16 text-muted-foreground" aria-hidden="true" />
               <div>
-                <p className="text-lg font-semibold">Upload Product Image</p>
+                <p className="text-lg font-semibold">Upload Product Images</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {hasCamera
-                    ? 'Take a photo or upload from your device'
-                    : 'Drag and drop an image here, or click to select'}
+                    ? 'Take photos or upload from your device'
+                    : 'Drag and drop images here, or click to select'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Supports: PNG, JPG, JPEG, WEBP (max 5MB)
+                  Upload up to {maxImages} images • PNG, JPG, JPEG, WEBP (max 5MB each)
                 </p>
               </div>
 
@@ -137,6 +167,7 @@ export function ImageUpload({ onImageSelect, disabled }: ImageUploadProps) {
                     type="file"
                     accept="image/*"
                     capture="environment"
+                    multiple={remainingSlots > 1}
                     onChange={handleCameraCapture}
                     className="hidden"
                     disabled={disabled}

@@ -5,11 +5,22 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { CheckCircle, Save, RefreshCw } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { CheckCircle, Save, RefreshCw, AlertCircle } from 'lucide-react'
 import type { Product } from '@/types/product'
+
+interface AnalysisMetadata {
+  imagesProcessed: number
+  totalImages: number
+  failedImages: number
+  confidence: number
+  processingTimeMs: number
+}
 
 interface ProductResultsProps {
   product: Partial<Product> & { nutrition?: any }
+  metadata?: AnalysisMetadata | null
   onSave: (editedProduct: Partial<Product> & { nutrition?: any }) => void
   onTryAnother: () => void
   isSaving: boolean
@@ -29,6 +40,7 @@ interface ProductFormValues {
 
 export function ProductResults({
   product,
+  metadata,
   onSave,
   onTryAnother,
   isSaving,
@@ -62,12 +74,52 @@ export function ProductResults({
     onSave(updatedProduct)
   }
 
+  // Helper function to get confidence badge variant
+  const getConfidenceBadgeVariant = (
+    confidence: number
+  ): 'success' | 'warning' | 'destructive' => {
+    if (confidence >= 80) return 'success'
+    if (confidence >= 60) return 'warning'
+    return 'destructive'
+  }
+
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-2 justify-center">
         <CheckCircle className="h-6 w-6 text-green-500" />
         <h2 className="text-2xl font-bold">Analysis Complete</h2>
       </div>
+
+      {/* Metadata display */}
+      {metadata && (
+        <Card className="p-4">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Badge variant={getConfidenceBadgeVariant(metadata.confidence)}>
+                  {metadata.confidence}% Confidence
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  {metadata.imagesProcessed} of {metadata.totalImages} images processed
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {(metadata.processingTimeMs / 1000).toFixed(1)}s
+              </span>
+            </div>
+
+            {metadata.failedImages > 0 && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {metadata.failedImages} image{metadata.failedImages !== 1 ? 's' : ''} could
+                  not be processed. Results may be incomplete.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        </Card>
+      )}
 
       <Card className="p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

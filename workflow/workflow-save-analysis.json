@@ -1,0 +1,207 @@
+{
+  "name": "Product Analyzer - Save Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "save-product",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8666ed3a-e234-47b4-a7cd-6f9a1e0020fa",
+      "name": "Webhook - Save Product",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        96,
+        -64
+      ],
+      "webhookId": "bc849ab7-e95e-40ae-b365-b9f02ac54402",
+      "notes": "Receives edited product data from web app for saving to database.\n\nExpected payload:\n{\n  \"productName\": \"string\",\n  \"brand\": \"string\",\n  \"category\": \"string\",\n  \"subCategory\": \"string\",\n  \"expiryDate\": \"YYYY-MM-DD\",\n  \"mrp\": \"string\",\n  \"weight\": \"string\",\n  \"ingredients\": \"string\",\n  \"nutrition\": {...},\n  \"healthScore\": number,\n  \"healthRating\": \"string\",\n  \"concerns\": \"string\",\n  \"quantity\": number\n}"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare data for Supabase insert - fix type mismatches\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  // Convert nutrition object to JSON string for TEXT field\n  const nutritionString = data.nutrition ? JSON.stringify(data.nutrition) : null;\n  \n  // Convert concerns array to newline-separated string for TEXT field\n  const concernsString = Array.isArray(data.concerns) && data.concerns.length > 0\n    ? data.concerns.join('\\n')\n    : null;\n  \n  // Ensure health_score fits NUMERIC(3,1) constraint (max 99.9)\n  let healthScore = data.healthScore || 0;\n  if (healthScore > 99.9) {\n    healthScore = 99.9;\n  }\n  if (healthScore < 0) {\n    healthScore = 0;\n  }\n  // Round to 1 decimal place\n  healthScore = Math.round(healthScore * 10) / 10;\n  \n  items.push({\n    json: {\n      ...data,\n      // Override with database-compatible formats\n      nutritionalInfo: nutritionString,\n      concernsText: concernsString,\n      healthScore: healthScore\n    },\n    pairedItem: { item: 0 }\n  });\n}\n\nreturn items;"
+      },
+      "id": "6daaf7a2-ee45-4cf1-a637-6680acc90999",
+      "name": "Prepare for Database",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        -64
+      ],
+      "notes": "Transforms data types to match Supabase schema:\n\n- nutrition object → JSON string (TEXT)\n- concerns array → newline-separated string (TEXT)\n- health_score capped at 99.9 (NUMERIC(3,1))\n- Handles null values safely"
+    },
+    {
+      "parameters": {
+        "useCustomSchema": true,
+        "tableId": "products",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "product_name",
+              "fieldValue": "={{ $json.body.productName }}"
+            },
+            {
+              "fieldId": "brand",
+              "fieldValue": "={{ $json.body.brand }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.body.category }}"
+            },
+            {
+              "fieldId": "sub_category",
+              "fieldValue": "={{ $json.body.subCategory }}"
+            },
+            {
+              "fieldId": "expiry_date",
+              "fieldValue": "={{ $json.body.expiryDate }}"
+            },
+            {
+              "fieldId": "mrp",
+              "fieldValue": "={{ $json.body.mrp }}"
+            },
+            {
+              "fieldId": "weight",
+              "fieldValue": "={{ $json.body.weight }}"
+            },
+            {
+              "fieldId": "ingredients",
+              "fieldValue": "={{ $json.body.ingredients }}"
+            },
+            {
+              "fieldId": "nutritional_info",
+              "fieldValue": "={{ $json.body.nutritionalInfo }}"
+            },
+            {
+              "fieldId": "health_score",
+              "fieldValue": "={{ $json.body.healthScore }}"
+            },
+            {
+              "fieldId": "health_rating",
+              "fieldValue": "={{ $json.body.healthRating }}"
+            },
+            {
+              "fieldId": "concerns",
+              "fieldValue": "={{ $json.body.concerns }}"
+            },
+            {
+              "fieldId": "quantity",
+              "fieldValue": "={{ $json.body.quantity }}"
+            },
+            {
+              "fieldId": "date_added",
+              "fieldValue": "={{ $json.body.extractedAt || $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        544,
+        -64
+      ],
+      "id": "318dfdfb-304f-4082-b522-f8b6fb1e942a",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "3czhVe1wGJUnugKf",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Product saved successfully\", \"data\": $json } }}",
+        "options": {}
+      },
+      "id": "4eb649ec-f4fb-43e5-bf35-b76ed914f856",
+      "name": "Webhook Response - Save",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        768,
+        -64
+      ],
+      "notes": "Returns success response after saving product to database."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Save Product": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Database": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response - Save",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Health Rating1": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Database1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Database1": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b7e5897e-de1e-4407-8ff7-27a2b9665f04",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "90b44310c8c08fb86dbf01f80fbd8baeb488eecbeea02ac56339a0d74268ca4f"
+  },
+  "id": "kRO0IHtEplqQjnNn",
+  "tags": []
+}

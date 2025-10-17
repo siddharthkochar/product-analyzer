@@ -3,20 +3,29 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ImageUpload } from '@/components/image-upload'
-import { ImagePreview } from '@/components/upload/image-preview'
+import { ImageGallery, type ImageItem } from '@/components/upload/image-gallery'
 import { AnalyzingState } from '@/components/upload/analyzing-state'
 import { ProductResults } from '@/components/upload/product-results'
 import { AnalysisError } from '@/components/upload/analysis-error'
 import { compressImage } from '@/lib/utils/image-compression'
 import { useToast } from '@/hooks/use-toast'
+import { Button } from '@/components/ui/button'
 import type { Product } from '@/types/product'
 
-type UploadState = 'idle' | 'preview' | 'analyzing' | 'success' | 'error'
+type UploadState = 'idle' | 'gallery' | 'analyzing' | 'success' | 'error'
+
+interface AnalysisMetadata {
+  imagesProcessed: number
+  totalImages: number
+  failedImages: number
+  confidence: number
+  processingTimeMs: number
+}
 
 interface UploadData {
-  image: File | null
-  preview: string | null
+  images: ImageItem[]
   result: (Partial<Product> & { nutrition?: any }) | null
+  metadata: AnalysisMetadata | null
   error: string | null
 }
 
@@ -28,116 +37,105 @@ export default function UploadPage() {
 
   const [state, setState] = useState<UploadState>('idle')
   const [data, setData] = useState<UploadData>({
-    image: null,
-    preview: null,
+    images: [],
     result: null,
+    metadata: null,
     error: null,
   })
   const [isSaving, setIsSaving] = useState(false)
-  const autoAnalysisTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Cleanup preview URL and timer on unmount
+  // Cleanup preview URLs on unmount
   useEffect(() => {
     return () => {
-      if (data.preview) {
-        URL.revokeObjectURL(data.preview)
-      }
-      if (autoAnalysisTimerRef.current) {
-        clearTimeout(autoAnalysisTimerRef.current)
-      }
+      data.images.forEach((img) => URL.revokeObjectURL(img.previewUrl))
     }
-  }, [data.preview])
+  }, [data.images])
 
-  // Auto-trigger analysis when state changes to 'analyzing' (from auto-analysis timer)
-  useEffect(() => {
-    if (state === 'analyzing' && data.image && data.preview) {
-      handleAnalyze()
-    }
-  }, [state])
+  // Handle images selection
+  const handleImagesSelect = useCallback((files: File[]) => {
+    const newImages: ImageItem[] = files.map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+      id: `${Date.now()}-${Math.random()}`,
+    }))
 
-  // Handle image selection (STATE 1 -> STATE 2 -> Auto-trigger STATE 3)
-  const handleImageSelect = useCallback((file: File) => {
-    // Clear any existing timer
-    if (autoAnalysisTimerRef.current) {
-      clearTimeout(autoAnalysisTimerRef.current)
-    }
-
-    // Create preview URL
-    const previewUrl = URL.createObjectURL(file)
-
-    setData({
-      image: file,
-      preview: previewUrl,
+    setData((prev) => ({
+      ...prev,
+      images: [...prev.images, ...newImages],
       result: null,
+      metadata: null,
       error: null,
-    })
-    setState('preview')
+    }))
+    setState('gallery')
 
     // Announce state change for screen readers
     setTimeout(() => {
       const announcement = document.createElement('div')
       announcement.setAttribute('role', 'status')
       announcement.setAttribute('aria-live', 'polite')
-      announcement.textContent = 'Image selected. Starting analysis...'
+      announcement.textContent = `${files.length} image${files.length !== 1 ? 's' : ''} selected. ${
+        files.length + data.images.length
+      } total images ready for analysis.`
       announcement.style.position = 'absolute'
       announcement.style.left = '-10000px'
       document.body.appendChild(announcement)
       setTimeout(() => document.body.removeChild(announcement), 1000)
     }, 100)
+  }, [data.images.length])
 
-    // Auto-trigger analysis after 800ms delay (brief preview flash)
-    // Store timeout reference so it can be cancelled if user changes image
-    autoAnalysisTimerRef.current = setTimeout(() => {
-      // Trigger analysis by setting state directly to 'analyzing'
-      // The analysis will start in the next useEffect
-      setState('analyzing')
-      setData((prev) => ({ ...prev, image: file, preview: previewUrl }))
-    }, 800)
+  // Handle remove image
+  const handleRemoveImage = useCallback((index: number) => {
+    setData((prev) => {
+      const imageToRemove = prev.images[index]
+      URL.revokeObjectURL(imageToRemove.previewUrl)
+
+      const newImages = prev.images.filter((_, i) => i !== index)
+
+      // If no images left, go back to idle state
+      if (newImages.length === 0) {
+        setState('idle')
+      }
+
+      return {
+        ...prev,
+        images: newImages,
+      }
+    })
   }, [])
 
-  // Handle retake/change image (STATE 2 or STATE 3 -> STATE 1)
-  const handleRetake = useCallback(() => {
-    // Cancel auto-analysis timer if user changes image during preview
-    if (autoAnalysisTimerRef.current) {
-      clearTimeout(autoAnalysisTimerRef.current)
-      autoAnalysisTimerRef.current = null
-    }
+  // Handle add more images
+  const handleAddMore = useCallback(() => {
+    // Trigger file input
+    fileInputRef.current?.click()
+  }, [])
 
-    if (data.preview) {
-      URL.revokeObjectURL(data.preview)
-    }
-    setData({
-      image: null,
-      preview: null,
-      result: null,
-      error: null,
-    })
-    setState('idle')
-  }, [data.preview])
-
-  // Handle analyze product (STATE 2 -> STATE 3)
+  // Handle analyze products (multiple images)
   const handleAnalyze = useCallback(async () => {
-    if (!data.image || !data.preview) return
+    if (data.images.length === 0) return
 
     setState('analyzing')
 
     try {
-      // Compress image to reduce upload size
-      const compressed = await compressImage(data.image, 2)
+      // Compress all images
+      const compressedImages = await Promise.all(
+        data.images.map((img) => compressImage(img.file, 2))
+      )
 
-      // Create FormData with compressed image file
+      // Create FormData with all compressed images
       const formData = new FormData()
-      formData.append('image', compressed.blob, compressed.filename)
+      compressedImages.forEach((compressed, index) => {
+        formData.append(`image${index}`, compressed.blob, `product-${index}.jpg`)
+      })
 
       // Create timeout promise
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('TIMEOUT')), ANALYSIS_TIMEOUT)
       })
 
-      // Call analysis API with FormData (server-side route)
-      const analysisPromise = fetch('/api/analyze', {
+      // Call multi-image analysis API
+      const analysisPromise = fetch('/api/analyze-multiple', {
         method: 'POST',
-        // Don't set Content-Type header - browser sets it automatically for FormData
         body: formData,
       }).then(async (res) => {
         if (!res.ok) {
@@ -150,7 +148,9 @@ export default function UploadPage() {
       const response = await Promise.race([analysisPromise, timeoutPromise]) as {
         success: boolean
         data?: any
+        metadata?: AnalysisMetadata
         error?: string
+        code?: string
       }
 
       if (!response.success || !response.data) {
@@ -162,9 +162,7 @@ export default function UploadPage() {
       // Handle array response from n8n (extract first item)
       const rawData = Array.isArray(response.data) ? response.data[0] : response.data
 
-      // Parse response data including nutrition object
-      // Note: We store nutrition as JSON string in nutritionalInfo for Product type,
-      // but we'll also preserve the raw nutrition object for saving to n8n
+      // Parse response data
       const nutritionData = rawData.nutrition || null
 
       const productData: Partial<Product> & { nutrition?: any } = {
@@ -183,18 +181,22 @@ export default function UploadPage() {
         concerns: Array.isArray(rawData.concerns)
           ? rawData.concerns.join('\n')
           : (rawData.concerns || ''),
-        // Preserve nutrition object for n8n workflow
         nutrition: nutritionData,
       }
 
       // Validate that we got some useful data
       if (!productData.productName && !productData.brand) {
         throw new Error(
-          'No product information found. Please ensure the label is clearly visible.'
+          'No product information found. Please ensure the labels are clearly visible.'
         )
       }
 
-      setData((prev) => ({ ...prev, result: productData, error: null }))
+      setData((prev) => ({
+        ...prev,
+        result: productData,
+        metadata: response.metadata || null,
+        error: null,
+      }))
       setState('success')
 
       // Announce success
@@ -202,7 +204,9 @@ export default function UploadPage() {
         const announcement = document.createElement('div')
         announcement.setAttribute('role', 'status')
         announcement.setAttribute('aria-live', 'polite')
-        announcement.textContent = 'Product analysis complete. Review the extracted information.'
+        announcement.textContent = `Product analysis complete from ${data.images.length} image${
+          data.images.length !== 1 ? 's' : ''
+        }. Review the extracted information.`
         announcement.style.position = 'absolute'
         announcement.style.left = '-10000px'
         document.body.appendChild(announcement)
@@ -215,7 +219,7 @@ export default function UploadPage() {
 
       if (error instanceof Error) {
         if (error.message === 'TIMEOUT') {
-          errorMessage = 'Analysis timed out after 60 seconds. The image may be too complex or the service is overloaded. Please try again.'
+          errorMessage = `Analysis timed out after 60 seconds. Try with fewer images or better quality photos.`
         } else if (error.message.includes('fetch')) {
           errorMessage =
             'Could not connect to analysis service. Please check your internet connection.'
@@ -224,7 +228,7 @@ export default function UploadPage() {
         }
       }
 
-      setData((prev) => ({ ...prev, error: errorMessage, result: null }))
+      setData((prev) => ({ ...prev, error: errorMessage, result: null, metadata: null }))
       setState('error')
 
       // Announce error
@@ -239,17 +243,24 @@ export default function UploadPage() {
         setTimeout(() => document.body.removeChild(announcement), 1000)
       }, 100)
     }
-  }, [data.image, data.preview])
+  }, [data.images])
 
-  // Handle retry analysis (STATE 4b -> STATE 3)
+  // Handle retry analysis
   const handleRetry = useCallback(() => {
     handleAnalyze()
   }, [handleAnalyze])
 
-  // Handle use different image (STATE 4b -> STATE 1)
+  // Handle use different image - clear all images
   const handleUseNewImage = useCallback(() => {
-    handleRetake()
-  }, [handleRetake])
+    data.images.forEach((img) => URL.revokeObjectURL(img.previewUrl))
+    setData({
+      images: [],
+      result: null,
+      metadata: null,
+      error: null,
+    })
+    setState('idle')
+  }, [data.images])
 
   // Handle save to inventory (STATE 4a -> navigate or STATE 1)
   const handleSave = useCallback(async (editedProduct: Partial<Product> & { nutrition?: any }) => {
@@ -304,52 +315,91 @@ export default function UploadPage() {
     }
   }, [router, toast])
 
-  // Handle try another product (STATE 4a -> STATE 1)
+  // Handle try another product
   const handleTryAnother = useCallback(() => {
-    if (data.preview) {
-      URL.revokeObjectURL(data.preview)
-    }
+    data.images.forEach((img) => URL.revokeObjectURL(img.previewUrl))
     setData({
-      image: null,
-      preview: null,
+      images: [],
       result: null,
+      metadata: null,
       error: null,
     })
     setState('idle')
-  }, [data.preview])
+  }, [data.images])
 
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h1 className="text-3xl font-bold mb-2">Upload Product Image</h1>
+        <h1 className="text-3xl font-bold mb-2">Upload Product Images</h1>
         <p className="text-muted-foreground">
-          Take a photo or upload an image to extract product information
+          Take photos or upload images to extract product information
         </p>
       </div>
+
+      {/* Hidden file input for "Add More" functionality */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={(e) => {
+          const files = e.target.files
+          if (files && files.length > 0) {
+            handleImagesSelect(Array.from(files))
+          }
+          e.target.value = ''
+        }}
+        className="hidden"
+      />
 
       <div className="flex justify-center">
         {state === 'idle' && (
           <div className="w-full max-w-2xl">
-            <ImageUpload onImageSelect={handleImageSelect} disabled={false} />
+            <ImageUpload
+              onImagesSelect={handleImagesSelect}
+              disabled={false}
+              currentImageCount={data.images.length}
+              maxImages={5}
+            />
           </div>
         )}
 
-        {state === 'preview' && data.preview && (
-          <ImagePreview
-            preview={data.preview}
-            onAnalyze={handleAnalyze}
-            onRetake={handleRetake}
-            isAnalyzing={false}
-          />
+        {state === 'gallery' && data.images.length > 0 && (
+          <div className="w-full space-y-6">
+            <ImageGallery
+              images={data.images}
+              onRemove={handleRemoveImage}
+              onAddMore={handleAddMore}
+              maxImages={5}
+            />
+
+            <div className="flex justify-center">
+              <Button
+                onClick={handleAnalyze}
+                size="lg"
+                className="h-14 px-8 text-base"
+                aria-label={`Analyze ${data.images.length} image${
+                  data.images.length !== 1 ? 's' : ''
+                }`}
+              >
+                Analyze All ({data.images.length} image{data.images.length !== 1 ? 's' : ''})
+              </Button>
+            </div>
+          </div>
         )}
 
-        {state === 'analyzing' && data.preview && (
-          <AnalyzingState preview={data.preview} onCancel={handleRetake} />
+        {state === 'analyzing' && data.images.length > 0 && (
+          <AnalyzingState
+            imageCount={data.images.length}
+            images={data.images}
+            onCancel={handleUseNewImage}
+          />
         )}
 
         {state === 'success' && data.result && (
           <ProductResults
             product={data.result}
+            metadata={data.metadata}
             onSave={handleSave}
             onTryAnother={handleTryAnother}
             isSaving={isSaving}

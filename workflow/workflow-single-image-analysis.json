@@ -1,5 +1,5 @@
 {
-  "name": "Product Packaging Analyzer",
+  "name": "Product Analyzer - Single Image Analysis",
   "nodes": [
     {
       "parameters": {
@@ -8,13 +8,13 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-trigger",
+      "id": "34240eb5-2d08-44d5-a8dd-c2ead490081a",
       "name": "Webhook - Receive Images",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        240,
-        304
+        96,
+        -64
       ],
       "webhookId": "product-analyzer",
       "notes": "Receives product packaging images via POST request.\n\nExpected payload:\n{\n  \"images\": [\"base64_image1\", \"base64_image2\", \"base64_image3\"]\n}\n\nOr via file upload through web interface."
@@ -23,13 +23,13 @@
       "parameters": {
         "jsCode": "const items = [];\n\nfor (const item of $input.all()) {\n  try {\n    let extractedText = '';\n\n    const data = item.json;\n\n    // If json is an array (e.g. from Gemini), process first item\n    if (Array.isArray(data) && data.length > 0) {\n      const firstItem = data[0];\n      if (\n        firstItem.content &&\n        Array.isArray(firstItem.content.parts) &&\n        firstItem.content.parts.length > 0 &&\n        typeof firstItem.content.parts[0].text === 'string'\n      ) {\n        extractedText = firstItem.content.parts[0].text;\n      }\n    }\n\n    // Else, json might be a single Gemini result object\n    else if (\n      data.content &&\n      Array.isArray(data.content.parts) &&\n      data.content.parts.length > 0 &&\n      typeof data.content.parts[0].text === 'string'\n    ) {\n      extractedText = data.content.parts[0].text;\n    }\n\n    // Fallbacks: other common API response formats\n    else if (typeof data.response === 'string') {\n      extractedText = data.response;\n    } else if (typeof data.text === 'string') {\n      extractedText = data.text;\n    } else if (typeof data.output === 'string') {\n      extractedText = data.output;\n    }\n\n    if (!extractedText) {\n      throw new Error('No response from Gemini API');\n    }\n\n    // Clean up markdown formatting\n    extractedText = extractedText\n      .replace(/```json\\n?/gi, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n\n    const productData = JSON.parse(extractedText);\n\n    if (!productData.productName || !productData.expiryDate) {\n      throw new Error('Missing required fields: productName or expiryDate');\n    }\n\n    const nutrition = {\n      energyKcal: productData.nutrition?.energyKcal ?? null,\n      proteinG: productData.nutrition?.proteinG ?? null,\n      carbsG: productData.nutrition?.carbsG ?? null,\n      sugarG: productData.nutrition?.sugarG ?? null,\n      fatG: productData.nutrition?.fatG ?? null,\n      saturatedFatG: productData.nutrition?.saturatedFatG ?? null,\n      transFatG: productData.nutrition?.transFatG ?? null,\n      sodiumMg: productData.nutrition?.sodiumMg ?? null,\n      fiberG: productData.nutrition?.fiberG ?? null,\n    };\n\n    items.push({\n      json: {\n        productName: productData.productName,\n        brand: productData.brand || 'Unknown',\n        category: productData.category || 'Uncategorized',\n        subCategory: productData.subCategory || 'Other',\n        expiryDate: productData.expiryDate,\n        mrp: productData.mrp || 'N/A',\n        weight: productData.weight || 'N/A',\n        ingredients: productData.ingredients || '',\n        nutrition,\n        quantity: 1,\n        extractedAt: new Date().toISOString()\n      }\n    });\n\n  } catch (err) {\n    const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';\n\n    items.push({\n      json: {\n        error: true,\n        errorMessage,\n        productName: 'EXTRACTION_ERROR',\n        brand: 'Unknown',\n        category: 'Uncategorized',\n        subCategory: 'Other',\n        expiryDate: null,\n        mrp: 'N/A',\n        weight: 'N/A',\n        ingredients: '',\n        nutrition: {},\n        quantity: 1,\n        extractedAt: new Date().toISOString()\n      }\n    });\n  }\n}\n\nreturn items;\n"
       },
-      "id": "code-parse-response",
+      "id": "9f5e31f7-9820-4183-a4ea-e95879970759",
       "name": "Parse & Transform Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        672,
-        304
+        544,
+        -64
       ],
       "notes": "Parses Gemini JSON response and validates data.\n\nHandles:\n- JSON extraction from Gemini response\n- Markdown cleanup\n- Required field validation\n- Error cases"
     },
@@ -37,13 +37,13 @@
       "parameters": {
         "jsCode": "// Calculate days to expire in human-readable format\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  // Skip if error\n  if (data.error) {\n    items.push({\n      json: {\n        ...data,\n        daysToExpire: null,\n        expiryStatus: 'Error',\n        daysToExpireRaw: null\n      },\n      pairedItem: { item: 0 }\n    });\n    continue;\n  }\n  \n  // Parse expiry date\n  if (!data.expiryDate) {\n    items.push({\n      json: {\n        ...data,\n        daysToExpire: 'Unknown',\n        expiryStatus: 'Unknown',\n        daysToExpireRaw: null\n      },\n      pairedItem: { item: 0 }\n    });\n    continue;\n  }\n  \n  const expiryDate = new Date(data.expiryDate);\n  const today = new Date();\n  today.setHours(0, 0, 0, 0);\n  expiryDate.setHours(0, 0, 0, 0);\n  \n  const diffTime = expiryDate - today;\n  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));\n  \n  let humanReadable = '';\n  let status = '';\n  \n  if (diffDays < 0) {\n    humanReadable = `Expired ${Math.abs(diffDays)} days ago`;\n    status = 'Expired';\n  } else if (diffDays === 0) {\n    humanReadable = 'Expires today';\n    status = 'Critical';\n  } else if (diffDays === 1) {\n    humanReadable = 'Expires tomorrow';\n    status = 'Critical';\n  } else if (diffDays <= 7) {\n    humanReadable = `${diffDays} days`;\n    status = 'Warning';\n  } else if (diffDays <= 14) {\n    const weeks = Math.floor(diffDays / 7);\n    const days = diffDays % 7;\n    if (days === 0) {\n      humanReadable = `${weeks} week${weeks > 1 ? 's' : ''}`;\n    } else {\n      humanReadable = `${weeks} week${weeks > 1 ? 's' : ''} ${days} day${days > 1 ? 's' : ''}`;\n    }\n    status = 'Good';\n  } else if (diffDays <= 30) {\n    humanReadable = `${diffDays} days`;\n    status = 'Good';\n  } else {\n    const months = Math.floor(diffDays / 30);\n    const remainingDays = diffDays % 30;\n    if (remainingDays === 0) {\n      humanReadable = `${months} month${months > 1 ? 's' : ''}`;\n    } else if (remainingDays <= 7) {\n      humanReadable = `${months} month${months > 1 ? 's' : ''} ${remainingDays} day${remainingDays > 1 ? 's' : ''}`;\n    } else {\n      const weeks = Math.floor(remainingDays / 7);\n      humanReadable = `${months} month${months > 1 ? 's' : ''} ${weeks} week${weeks > 1 ? 's' : ''}`;\n    }\n    status = 'Good';\n  }\n  \n  items.push({\n    json: {\n      ...data,\n      daysToExpire: humanReadable,\n      expiryStatus: status,\n      daysToExpireRaw: diffDays\n    },\n    pairedItem: { item: 0 }\n  });\n}\n\nreturn items;"
       },
-      "id": "code-calculate-expiry",
+      "id": "71065685-3b3d-4947-b868-86f80377b635",
       "name": "Calculate Days to Expire",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        896,
-        304
+        768,
+        -64
       ],
       "notes": "Calculates expiry in human-readable format.\n\nFormats:\n- 'Expires today/tomorrow'\n- 'X days'\n- '1 week 2 days'\n- '2 months 1 week'\n- 'Expired X days ago'\n\nStatus: Critical/Warning/Good/Expired"
     },
@@ -51,79 +51,31 @@
       "parameters": {
         "jsCode": "// Analyze health rating based on ingredients and nutrition\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  // Skip if error\n  if (data.error) {\n    items.push({\n      json: {\n        ...data,\n        healthRating: 'Unknown',\n        healthScore: 0,\n        concerns: []\n      },\n      pairedItem: { item: 0 }\n    });\n    continue;\n  }\n  \n  const ingredients = (data.ingredients || '').toLowerCase();\n  const nutrition = data.nutrition || {};\n  \n  let score = 100; // Start with perfect score\n  const concerns = [];\n  \n  // Check for harmful ingredients\n  const harmfulIngredients = [\n    { name: 'Contains trans fats which increase bad cholesterol and heart disease risk', penalty: 40, pattern: /trans.?fat|partially hydrogenated|hydrogenated oil/ },\n    { name: 'Contains high fructose corn syrup linked to obesity and diabetes', penalty: 25, pattern: /high.?fructose.?corn.?syrup|hfcs/ },\n    { name: 'Contains artificial sweeteners which may affect metabolism and gut health', penalty: 20, pattern: /aspartame|sucralose|saccharin|acesulfame/ },\n    { name: 'Contains MSG (flavor enhancer) which may cause sensitivity in some people', penalty: 15, pattern: /monosodium.?glutamate|msg|e621/ },\n    { name: 'Contains sodium nitrite (preservative) linked to cancer risk when consumed regularly', penalty: 20, pattern: /sodium.?nitrite|e250/ },\n    { name: 'Contains artificial colors which may cause hyperactivity in children', penalty: 15, pattern: /tartrazine|e102|e110|e129|sunset yellow|red 40/ },\n    { name: 'Contains palm oil which is high in saturated fat', penalty: 10, pattern: /palm.?oil/ },\n    { name: 'Contains multiple preservatives which may have cumulative health effects', penalty: 10, pattern: /(e2\\d{2}|preservative).*?(e2\\d{2}|preservative)/ }\n  ];\n  \n  harmfulIngredients.forEach(item => {\n    if (item.pattern.test(ingredients)) {\n      score -= item.penalty;\n      concerns.push(item.name);\n    }\n  });\n  \n  // Check nutritional values (per 100g/100ml) - handle null values\n  if (nutrition.sugarG != null && nutrition.sugarG > 15) {\n    score -= 15;\n    concerns.push(`High sugar content (${nutrition.sugarG}g per 100g) - linked to weight gain and diabetes`);\n  }\n  \n  if (nutrition.sodiumMg != null && nutrition.sodiumMg > 500) {\n    score -= 15;\n    concerns.push(`High sodium content (${nutrition.sodiumMg}mg per 100g) - may increase blood pressure`);\n  }\n  \n  if (nutrition.saturatedFatG != null && nutrition.saturatedFatG > 5) {\n    score -= 15;\n    concerns.push(`High saturated fat (${nutrition.saturatedFatG}g per 100g) - raises cholesterol levels`);\n  }\n  \n  if (nutrition.transFatG != null && nutrition.transFatG > 0) {\n    score -= 30;\n    concerns.push(`Contains trans fat (${nutrition.transFatG}g per 100g) - extremely harmful to heart health`);\n  }\n  \n  // Positive factors - handle null values\n  if (nutrition.fiberG != null && nutrition.fiberG >= 5) {\n    score += 5;\n  }\n  \n  if (nutrition.proteinG != null && nutrition.proteinG >= 10) {\n    score += 5;\n  }\n  \n  // Ensure score is between 0-100\n  score = Math.max(0, Math.min(100, score));\n  \n  // Cap score at 99.9 for database NUMERIC(3,1) constraint\n  score = Math.min(99.9, score);\n  \n  // Determine rating\n  let rating = '';\n  if (score >= 80) {\n    rating = 'Healthy';\n  } else if (score >= 60) {\n    rating = 'Moderate';\n  } else if (score >= 40) {\n    rating = 'Not Healthy';\n  } else {\n    rating = 'Harmful';\n  }\n  \n  items.push({\n    json: {\n      ...data,\n      healthRating: rating,\n      healthScore: score,\n      concerns: concerns\n    },\n    pairedItem: { item: 0 }\n  });\n}\n\nreturn items;"
       },
-      "id": "code-health-rating",
+      "id": "06d9e5da-f2c7-4498-bba3-701e88046ea8",
       "name": "Analyze Health Rating",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1104,
-        304
+        992,
+        -64
       ],
       "notes": "Analyzes health rating based on ingredients and nutrition.\n\nScoring (0-100, capped at 99.9):\n- Harmful ingredients: -10 to -40 points\n- High sugar/sodium/fat: -15 points each\n- Trans fat: -30 points\n- High fiber/protein: +5 points each\n\nRatings:\n- 80-100: Healthy\n- 60-79: Moderate\n- 40-59: Not Healthy\n- 0-39: Harmful"
     },
     {
       "parameters": {
-        "jsCode": "// Prepare data for Supabase insert - fix type mismatches\nconst items = [];\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  \n  // Convert nutrition object to JSON string for TEXT field\n  const nutritionString = data.nutrition ? JSON.stringify(data.nutrition) : null;\n  \n  // Convert concerns array to newline-separated string for TEXT field\n  const concernsString = Array.isArray(data.concerns) && data.concerns.length > 0\n    ? data.concerns.join('\\n')\n    : null;\n  \n  // Ensure health_score fits NUMERIC(3,1) constraint (max 99.9)\n  let healthScore = data.healthScore || 0;\n  if (healthScore > 99.9) {\n    healthScore = 99.9;\n  }\n  if (healthScore < 0) {\n    healthScore = 0;\n  }\n  // Round to 1 decimal place\n  healthScore = Math.round(healthScore * 10) / 10;\n  \n  items.push({\n    json: {\n      ...data,\n      // Override with database-compatible formats\n      nutritionalInfo: nutritionString,\n      concernsText: concernsString,\n      healthScore: healthScore\n    },\n    pairedItem: { item: 0 }\n  });\n}\n\nreturn items;"
-      },
-      "id": "code-prepare-for-db",
-      "name": "Prepare for Database",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1208,
-        304
-      ],
-      "notes": "Transforms data types to match Supabase schema:\n\n- nutrition object → JSON string (TEXT)\n- concerns array → newline-separated string (TEXT)\n- health_score capped at 99.9 (NUMERIC(3,1))\n- Handles null values safely"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 1
-          },
-          "conditions": [
-            {
-              "id": "5b5db0bb-d0ff-49eb-b046-e69b194328df",
-              "leftValue": "={{ $('Analyze Health Rating').item.json.daysToExpireRaw }}",
-              "rightValue": 7,
-              "operator": {
-                "type": "number",
-                "operation": "lte"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "if-expiry-alert",
-      "name": "Check Expiry Alert",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1632,
-        304
-      ],
-      "notes": "Checks if product expires within 7 days.\n\nConditions:\n- Days to expire <= 7\n- Not already expired\n\nTrue = Send WhatsApp alert\nFalse = Skip notification"
-    },
-    {
-      "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { \"success\": true, \"product\": $json.productName, \"expiryDate\": $json.expiryDate, \"daysToExpire\": $json.daysToExpire, \"healthRating\": $json.healthRating, \"alertSent\": $json.daysToExpireRaw <= 7 } }}",
+        "responseBody": "={{ { \"success\": true, \"data\": $json } }}",
         "options": {}
       },
-      "id": "webhook-response",
-      "name": "Webhook Response",
+      "id": "4028e36e-f582-4ff8-a15f-faab65d50942",
+      "name": "Respond with Analysis Results",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        2016,
-        304
+        1216,
+        -64
       ],
-      "notes": "Returns JSON response to webhook caller.\n\nResponse includes:\n- Success status\n- Product name\n- Expiry information\n- Health rating\n- Alert sent status"
+      "notes": "Returns analyzed product data to web app WITHOUT saving to database.\n\nUser can review and edit the information before saving."
     },
     {
       "parameters": {
@@ -143,95 +95,15 @@
       "type": "@n8n/n8n-nodes-langchain.googleGemini",
       "typeVersion": 1,
       "position": [
-        448,
-        304
+        320,
+        -64
       ],
-      "id": "0346ef24-725b-4446-ab7d-05de056ed6e9",
+      "id": "bfd5d4a6-c7c4-4d49-9b5c-e071f87c8e87",
       "name": "Analyze an image",
       "credentials": {
         "googlePalmApi": {
           "id": "LacQX7GUTMSqsofm",
           "name": "Google Gemini(PaLM) Api account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "useCustomSchema": true,
-        "tableId": "products",
-        "fieldsUi": {
-          "fieldValues": [
-            {
-              "fieldId": "product_name",
-              "fieldValue": "={{ $json.productName }}"
-            },
-            {
-              "fieldId": "brand",
-              "fieldValue": "={{ $json.brand }}"
-            },
-            {
-              "fieldId": "category",
-              "fieldValue": "={{ $json.category }}"
-            },
-            {
-              "fieldId": "sub_category",
-              "fieldValue": "={{ $json.subCategory }}"
-            },
-            {
-              "fieldId": "expiry_date",
-              "fieldValue": "={{ $json.expiryDate }}"
-            },
-            {
-              "fieldId": "mrp",
-              "fieldValue": "={{ $json.mrp }}"
-            },
-            {
-              "fieldId": "weight",
-              "fieldValue": "={{ $json.weight }}"
-            },
-            {
-              "fieldId": "ingredients",
-              "fieldValue": "={{ $json.ingredients }}"
-            },
-            {
-              "fieldId": "nutritional_info",
-              "fieldValue": "={{ $json.nutritionalInfo }}"
-            },
-            {
-              "fieldId": "health_score",
-              "fieldValue": "={{ $json.healthScore }}"
-            },
-            {
-              "fieldId": "health_rating",
-              "fieldValue": "={{ $json.healthRating }}"
-            },
-            {
-              "fieldId": "concerns",
-              "fieldValue": "={{ $json.concernsText }}"
-            },
-            {
-              "fieldId": "quantity",
-              "fieldValue": "={{ $json.quantity }}"
-            },
-            {
-              "fieldId": "date_added",
-              "fieldValue": "={{ $json.extractedAt }}"
-            }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [
-        1416,
-        304
-      ],
-      "id": "4ae20e92-28b4-4fb6-af15-6258b3789ce3",
-      "name": "Create a row",
-      "credentials": {
-        "supabaseApi": {
-          "id": "3czhVe1wGJUnugKf",
-          "name": "Supabase account"
         }
       }
     }
@@ -275,36 +147,7 @@
       "main": [
         [
           {
-            "node": "Prepare for Database",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare for Database": {
-      "main": [
-        [
-          {
-            "node": "Create a row",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check Expiry Alert": {
-      "main": [
-        [
-          {
-            "node": "Webhook Response",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Webhook Response",
+            "node": "Respond with Analysis Results",
             "type": "main",
             "index": 0
           }
@@ -322,11 +165,27 @@
         ]
       ]
     },
-    "Create a row": {
+    "Analyze Health Rating1": {
       "main": [
         [
           {
-            "node": "Check Expiry Alert",
+            "node": "Prepare for Database1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Database1": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store in Supabase",
             "type": "main",
             "index": 0
           }
@@ -338,7 +197,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "48529c86-aa95-4eb7-b61d-65dcd1c6df48",
+  "versionId": "5c31bb69-8534-4f14-a9e4-bd00347e419c",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "90b44310c8c08fb86dbf01f80fbd8baeb488eecbeea02ac56339a0d74268ca4f"
