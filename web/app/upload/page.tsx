@@ -10,6 +10,14 @@ import { AnalysisError } from '@/components/upload/analysis-error'
 import { compressImage } from '@/lib/utils/image-compression'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
+import { Camera, Upload } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { Product } from '@/types/product'
 
 type UploadState = 'idle' | 'gallery' | 'analyzing' | 'success' | 'error'
@@ -43,7 +51,9 @@ export default function UploadPage() {
     error: null,
   })
   const [isSaving, setIsSaving] = useState(false)
+  const [showAddMoreOptions, setShowAddMoreOptions] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
   // Cleanup preview URLs on unmount
   useEffect(() => {
@@ -106,9 +116,29 @@ export default function UploadPage() {
 
   // Handle add more images
   const handleAddMore = useCallback(() => {
-    // Trigger file input
-    fileInputRef.current?.click()
+    // Show options dialog
+    setShowAddMoreOptions(true)
   }, [])
+
+  // Handle camera capture for adding more
+  const handleCameraCapture = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      handleImagesSelect(Array.from(files))
+    }
+    e.target.value = ''
+    setShowAddMoreOptions(false)
+  }, [handleImagesSelect])
+
+  // Handle file upload for adding more
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      handleImagesSelect(Array.from(files))
+    }
+    e.target.value = ''
+    setShowAddMoreOptions(false)
+  }, [handleImagesSelect])
 
   // Handle analyze products (multiple images)
   const handleAnalyze = useCallback(async () => {
@@ -336,21 +366,59 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* Hidden file input for "Add More" functionality */}
+      {/* Hidden inputs for "Add More" functionality */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        multiple={data.images.length < 5}
+        onChange={handleCameraCapture}
+        className="hidden"
+      />
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
         multiple
-        onChange={(e) => {
-          const files = e.target.files
-          if (files && files.length > 0) {
-            handleImagesSelect(Array.from(files))
-          }
-          e.target.value = ''
-        }}
+        onChange={handleFileUpload}
         className="hidden"
       />
+
+      {/* Add More Options Dialog */}
+      <Dialog open={showAddMoreOptions} onOpenChange={setShowAddMoreOptions}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add More Images</DialogTitle>
+            <DialogDescription>
+              Choose how you want to add more product images
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <Button
+              size="lg"
+              onClick={() => {
+                cameraInputRef.current?.click()
+              }}
+              className="h-14 text-base"
+            >
+              <Camera className="mr-2 h-5 w-5" />
+              Take Photo
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => {
+                fileInputRef.current?.click()
+              }}
+              className="h-14 text-base"
+            >
+              <Upload className="mr-2 h-5 w-5" />
+              Upload from Device
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex justify-center">
         {state === 'idle' && (
